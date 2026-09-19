@@ -26,8 +26,14 @@
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
+		<key>ITSAppUsesNonExemptEncryption</key>
+		<false/>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>BERP uses your location only when you clock in, to confirm you are at an approved workplace.</string>
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>BERP uses your location when you clock in, to confirm you are at an approved workplace. Location is only used while you are using the app.</string>
+		<key>NSLocationAlwaysUsageDescription</key>
+		<string>BERP uses your location when you clock in, to confirm you are at an approved workplace. Location is only used while you are using the app.</string>
 		<key>NSCameraUsageDescription</key>
 		<string>BERP uses the camera so you can take a staff profile photo.</string>
 		<key>NSPhotoLibraryUsageDescription</key>

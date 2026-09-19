@@ -215,69 +215,84 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                         const SizedBox(height: 22),
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
                           decoration: BoxDecoration(
                             color: _card,
-                            borderRadius: BorderRadius.circular(18),
+                            borderRadius: BorderRadius.circular(14),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
                             children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 10,
-                                    height: 10,
-                                    decoration: BoxDecoration(
-                                      color: onShift ? _green : _muted,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    onShift ? 'On shift' : 'Off shift',
-                                    style: _body(
-                                      size: 12,
-                                      weight: FontWeight.w500,
-                                      color: onShift ? _green : _muted,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  Text(
-                                    'Today ${formatDurationHms(today)}',
-                                    style: _body(size: 11.5, color: _muted),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-                              Text(
-                                onShift
-                                    ? formatDurationHms(elapsed)
-                                    : 'Clock in to start your day',
-                                style:
-                                    _panchang(
-                                      size: onShift ? 40 : 16,
-                                      weight: FontWeight.w700,
-                                    ).copyWith(
-                                      fontFeatures: const [
-                                        FontFeature.tabularFigures(),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          width: 7,
+                                          height: 7,
+                                          decoration: BoxDecoration(
+                                            color: onShift ? _green : _muted,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          onShift ? 'On shift' : 'Off shift',
+                                          style: _body(
+                                            size: 11,
+                                            weight: FontWeight.w500,
+                                            color: onShift ? _green : _muted,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Flexible(
+                                          child: Text(
+                                            'Today ${formatDurationHms(today)}',
+                                            overflow: TextOverflow.ellipsis,
+                                            style: _body(
+                                              size: 11,
+                                              color: _muted,
+                                            ),
+                                          ),
+                                        ),
                                       ],
-                                      letterSpacing: onShift ? 1.2 : 0,
                                     ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      onShift
+                                          ? formatDurationHms(elapsed)
+                                          : 'Clock in to start your day',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style:
+                                          _panchang(
+                                            size: onShift ? 18 : 12.5,
+                                            weight: FontWeight.w700,
+                                          ).copyWith(
+                                            fontFeatures: const [
+                                              FontFeature.tabularFigures(),
+                                            ],
+                                            letterSpacing: onShift ? 0.6 : 0,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      onShift
+                                          ? _open!.siteName == null
+                                                ? 'Since ${formatClock(_open!.clockIn)}'
+                                                : 'At ${_open!.siteName}  ·  since ${formatClock(_open!.clockIn)}'
+                                          : 'Only at approved workplaces',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: _body(size: 11, color: _muted),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                onShift
-                                    ? _open!.siteName == null
-                                          ? 'Since ${formatClock(_open!.clockIn)}'
-                                          : 'At ${_open!.siteName}  ·  since ${formatClock(_open!.clockIn)}'
-                                    : 'Only at approved workplaces',
-                                style: _body(size: 12, color: _muted),
-                              ),
-                              const SizedBox(height: 18),
+                              const SizedBox(width: 10),
                               SizedBox(
-                                width: double.infinity,
-                                height: 48,
+                                height: 34,
                                 child: FilledButton(
                                   onPressed: _busy ? null : _toggleClock,
                                   style: FilledButton.styleFrom(
@@ -289,18 +304,24 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                                       alpha: 0.4,
                                     ),
                                     elevation: 0,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                    ),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
                                   ),
                                   child: Text(
                                     _busy && !onShift
-                                        ? 'Checking location...'
+                                        ? 'Checking…'
                                         : onShift
                                         ? 'Clock out'
                                         : 'Clock in',
                                     style: _panchang(
-                                      size: 12,
+                                      size: 11,
                                       weight: FontWeight.w600,
                                     ),
                                   ),
