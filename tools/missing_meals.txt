@@ -1,0 +1,267 @@
+Danish Pastry
+Brioche
+Muffin
+Artisan Bread Basket
+Bagel
+Toast with Preserves
+French Pastry Platter
+Oatmeal / Porridge
+Greek Yogurt & Granola
+Fried Eggs
+Boiled Eggs
+Plain Omelette
+Cheese Omelette
+Spanish Omelette
+Omelette (Custom)
+Bacon
+Sausage
+Grilled Ham
+Cold Meat Platter
+Smoked Salmon & Cream Cheese
+Hash Browns
+Sautéed Potatoes
+Sautéed Mushrooms
+Grilled Tomatoes
+Waffles
+French Toast
+Full English Breakfast
+Breakfast Sandwich
+Breakfast Wrap
+Fruit Cup
+Fruit Basket
+Chicken Club Sandwich
+Turkey Club Sandwich
+Chicken Sub
+Tuna Club Sandwich
+Philadelphia Sandwich
+Ham & Cheese Sandwich
+Beef Fillet Sandwich
+Salmon Sandwich
+Sausage Chicken Sandwich
+Mini Sandwiches
+Wraps
+Chicken Wrap Bites
+Hawaiian Burger
+Cheeseburger
+Chili Burger
+Chicken Burger
+Wings Chicken Burger
+Chicken Quesadillas
+Chicken Fajita Platter
+Shrimp Fajita
+Mixed Trio Fajita
+Beef Fajita
+Thai Beef
+Thai Chicken
+Chili Mexican
+Mini Beef Skewers
+Chicken Kebab
+Beef Kebab
+Salmon Kebab
+Prawn Skewers
+Gizdodo Skewer
+Chicken Lollipops
+Buffalo Wings
+Combo Appetizer
+Foie Gras Bites
+Cheese & Olive Tartlets
+Stuffed Mushrooms
+Spring Rolls
+Mozzarella Sticks
+Hummus
+Potato Wedges
+French Fries
+Crispy Plantain Chips
+Pepper Gizzard
+Pepper Snails
+Assorted Canapés
+Classic Chef Salad
+Chicken Caesar Salad
+Chicken Salad
+Greek Salad
+Tex-Mex Salad
+Tuna Salad
+Seafood Salad
+Octopus Salad
+Niçoise Salad
+Prawn Salad
+Lebanese Salad
+Evergreen Salad
+Avocado Salad
+Coleslaw
+Fruit Salad
+Charcuterie Platter
+Antipasto Platter
+Artisanal Cheese Board
+Cheese Platter
+Smoked Seafood Platter
+Smoked Salmon Platter
+Seafood Platter
+Sushi & Sashimi Platter
+Crudités with Dips
+Chicken Soup
+Chicken & Corn Soup
+Chicken Cream Soup
+Creamy Mushroom Soup
+Pumpkin Soup
+Vegetable Consommé
+Gazpacho
+Afang Soup
+Efo Riro Soup
+Edikang Ikong Soup
+Oha Soup
+Egusi Soup
+Ogbono Soup
+Okra Soup
+Seafood Okra Soup
+Banga Soup
+Catfish Pepper Soup
+Croaker Pepper Soup
+Chicken Pepper Soup
+Goat Meat Pepper Soup
+Assorted Meat Pepper Soup
+Spaghetti Bolognese
+Carbonara
+Penne Arrabbiata
+Pasta al Pesto
+Seafood Pasta
+Chicken Alfredo Pasta
+Salmon Pasta
+Creamy Chicken Pasta
+Tagliatelle Alfredo
+Tagliatelle Apollo
+Four Cheese Pasta
+Fettuccine
+Lasagna
+Chicken Noodles
+Beef Noodles
+Shrimp Noodles
+Stir-Fry Noodles
+Pasta Jollof
+Spaghetti Jollof
+White Rice
+Jollof Rice
+Fried Rice
+Coconut Rice
+Native Rice
+Basmati Rice
+Brown Rice
+Wild Rice
+Pilaf Rice
+Chinese Rice
+Mushroom Risotto
+Vegetable Risotto
+Couscous & Vegetables
+Beef Fillet
+Pepper Steak
+Beef Stroganoff
+Shredded Beef
+Ribeye Steak
+T-Bone Steak
+Braised Lamb Shank
+Lamb Chops
+Roasted Spring Chicken
+Fried Chicken
+Grilled Chicken Breast
+BBQ Chicken
+Chicken Stir-Fry
+Curry Chicken
+Indian Curry Chicken
+Tandoori Chicken
+Chicken Stroganoff
+Shredded Chicken
+Chicken Brochettes
+Chicken with Mushroom Sauce
+Chicken Sauce
+Grilled White Fish
+Grilled Fish
+Grilled Tilapia
+Sea Bass
+Chilean Sea Bass
+Whole Croaker
+Chiki Fish
+Fish Coconut Curry
+Fish Curry
+Fish Country Style
+Fish Fillet with Papaya Salad
+Sweet & Sour Fish
+Chili Prawns
+Sweet & Sour Prawns
+Stir-Fry Shrimp & Vegetables
+Sweet & Sour Salmon
+Lobster Thermidor
+Mixed Seafood Grill
+Stuffed Bell Peppers
+Mashed Potatoes
+Truffle Mashed Potatoes
+Roasted Baby Potatoes
+Sweet Potato Fries
+Steamed Vegetables
+Grilled Vegetables
+Sautéed Greens
+Sautéed Spinach
+Sautéed Ugu
+Ratatouille
+Chutney
+Pounded Yam
+Semovita
+Wheat
+Eba
+Boiled Yam
+Fried Yam
+Yam Porridge
+Boiled Plantain
+Fried Plantain
+Plantain Porridge
+Egg Sauce / Egg Stew
+Fish Sauce
+Chocolate Mousse
+Vanilla Crème Brûlée
+Tiramisu
+Cheesecake
+Chocolate Cake
+White Forest Cake
+Black Forest Cake
+Fruit Tart
+Coconut Puff Puff
+Assorted Ice Creams
+Sorbets
+Petit Fours
+Macarons
+Chocolate Truffles
+Assorted Nuts
+Dried Fruits
+Crisps / Chips
+Protein Bars
+Biscuits & Cookies
+Energy Balls
+Apple
+Pear
+Tangerine
+Kiwi
+Plum
+Grapes
+Strawberries
+Blueberries
+Still Water
+Sparkling Water
+Orange Juice
+Pineapple Juice
+Watermelon Juice
+Carrot Juice
+Mixed Fruit Juice
+Coca-Cola
+Coca-Cola Zero
+Sprite
+Fanta
+Ginger Ale
+Tonic Water
+Soda Water
+Tea Selection
+Coffee Selection
+Hot Chocolate
+Milk
+Wine Selection
+Champagne
+Spirits
+Signature Cocktails

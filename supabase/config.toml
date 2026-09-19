@@ -1,0 +1,7 @@
+# Forgot-password users have no session JWT.
+
+[functions.berp-send-recovery]
+verify_jwt = false
+
+[functions.berp-confirm-recovery]
+verify_jwt = false
