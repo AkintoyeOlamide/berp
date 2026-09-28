@@ -62,57 +62,6 @@ class TeamScreen extends StatelessWidget {
                 ),
             ],
           ),
-          SizedBox(height: r.scale(28)),
-          const PremiumDivider(),
-          SizedBox(height: r.scale(28)),
-          Text(
-            'Client stories',
-            style: GoogleFonts.fraunces(
-              color: p.title,
-              fontSize: r.font(26, tablet: 30),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          SizedBox(height: r.scale(18)),
-          ResponsiveGrid(
-            children: [
-              for (final s in AppContent.stories)
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.all(r.scale(24)),
-                  decoration: premiumCardDecoration(context),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '“${s.quote}”',
-                        style: GoogleFonts.fraunces(
-                          color: p.title,
-                          fontSize: r.font(19, tablet: 21),
-                          height: 1.4,
-                        ),
-                      ),
-                      SizedBox(height: r.scale(16)),
-                      Text(
-                        s.name,
-                        style: GoogleFonts.sora(
-                          color: p.title,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      SizedBox(height: r.scale(4)),
-                      Text(
-                        s.title,
-                        style: GoogleFonts.sora(
-                          color: p.body,
-                          fontSize: r.font(13),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
         ],
       ),
     );

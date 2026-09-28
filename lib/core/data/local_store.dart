@@ -200,25 +200,7 @@ class LocalStore {
 
   Future<List<Trip>> trips() async {
     final prefs = await SharedPreferences.getInstance();
-    if (!(prefs.getBool(_tripsSeededKey) ?? false)) {
-      final tomorrow = DateTime.now().add(const Duration(days: 1));
-      final seeded = Trip(
-        id: 'seed-kteb-ksan',
-        originCode: 'KTEB',
-        originName: 'Teterboro Airport',
-        destCode: 'KSAN',
-        destName: 'San Diego Intl.',
-        departLabel: 'Depart 10:00 AM',
-        arriveLabel: 'Arrive Est. 1:00 PM',
-        dateTime: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 10),
-        tailNumber: 'N313JD',
-        aircraftId: '',
-        passengerCount: 6,
-      );
-      await prefs.setString(_tripsKey, jsonEncode([seeded.toMap()]));
-      await prefs.setBool(_tripsSeededKey, true);
-      return [seeded];
-    }
+    await prefs.remove(_tripsSeededKey);
     final raw = prefs.getString(_tripsKey);
     if (raw == null || raw.isEmpty) return [];
     final list = (jsonDecode(raw) as List<dynamic>)
@@ -229,7 +211,21 @@ class LocalStore {
           ),
         )
         .toList();
-    return list;
+    final kept = [
+      for (final trip in list)
+        if (trip.id != 'seed-kteb-ksan') trip,
+    ];
+    if (kept.length != list.length) {
+      if (kept.isEmpty) {
+        await prefs.remove(_tripsKey);
+      } else {
+        await prefs.setString(
+          _tripsKey,
+          jsonEncode([for (final trip in kept) trip.toMap()]),
+        );
+      }
+    }
+    return kept;
   }
 
   Future<void> saveTrip(Trip trip) async {

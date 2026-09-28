@@ -119,7 +119,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       ),
                   const SizedBox(height: 18),
                   Text(
-                    'Recent clocks',
+                    'My attendance',
                     style: _sans(size: 16, weight: FontWeight.w600),
                   ),
                   const SizedBox(height: 10),
@@ -129,7 +129,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       style: _sans(size: 13, color: AppColors.muted, height: 1.4),
                     )
                   else
-                    for (final session in _sessions.take(8))
+                    for (final session in _sessions.take(40))
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: _InfoCard(
@@ -141,7 +141,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                               : AppColors.secondary,
                           title: session.siteName ?? 'Shift',
                           body:
-                              '${formatLagosLongDay(session.clockIn)}  ·  ${formatClock(session.clockIn)} – ${session.clockOut == null ? 'Now' : formatClock(session.clockOut!)}  ·  ${formatHoursCompact(session.elapsed)}',
+                              '${formatLagosLongDay(session.clockIn)}  ·  ${formatClock(session.clockIn)} – ${session.clockOut == null ? 'Now' : formatClock(session.clockOut!)}  ·  ${formatHoursCompact(session.elapsed)}${session.clockInLat == null ? '' : '  ·  ${session.clockInLat!.toStringAsFixed(5)}, ${session.clockInLng!.toStringAsFixed(5)}'}',
                         ),
                       ),
                   const AppBottomNavSpacer(extra: 12),

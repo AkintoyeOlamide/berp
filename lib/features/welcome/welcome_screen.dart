@@ -206,7 +206,7 @@ class _PortraitBody extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: _panchang(
                       color: Colors.white,
-                      fontSize: 22,
+                      fontSize: 15,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.4,
                     ),
@@ -231,7 +231,7 @@ class _PortraitBody extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: _panchang(
                         color: AppColors.secondary,
-                        fontSize: 13,
+                        fontSize: 11,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -293,7 +293,7 @@ class _LandscapeBody extends StatelessWidget {
                         'Staff sign in',
                         style: _panchang(
                           color: Colors.white,
-                          fontSize: 18,
+                          fontSize: 13,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -319,7 +319,7 @@ class _LandscapeBody extends StatelessWidget {
                           'Sign in',
                           style: _panchang(
                             color: AppColors.secondary,
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -420,7 +420,7 @@ class _LandingLockup extends StatelessWidget {
               BerpBrand.wordmark,
               style: _panchang(
                 color: Colors.white,
-                fontSize: compact ? 13 : 16,
+                fontSize: compact ? 10 : 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.1,
                 height: 1,
@@ -431,7 +431,7 @@ class _LandingLockup extends StatelessWidget {
               BerpBrand.line,
               style: _panchang(
                 color: AppColors.secondary,
-                fontSize: compact ? 8 : 9.5,
+                fontSize: compact ? 7 : 8,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 2.4,
                 height: 1,

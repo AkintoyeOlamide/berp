@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../../core/auth/staff_access.dart';
+import '../../core/data/berp_cloud.dart';
+import '../../core/data/berp_org.dart';
 import '../../core/data/staff_store.dart';
 import '../../core/widgets/app_bottom_nav.dart';
 import '../../core/widgets/pattern_page.dart';
@@ -14,7 +18,10 @@ class LeaveScreen extends StatefulWidget {
 
 class _LeaveScreenState extends State<LeaveScreen> {
   List<LeaveRequest> _requests = [];
+  List<TeamLeave> _team = [];
   int _remaining = StaffStore.annualAllowance;
+
+  bool get _canDecide => StaffAccess.role.value.isManager;
 
   @override
   void initState() {
@@ -25,10 +32,12 @@ class _LeaveScreenState extends State<LeaveScreen> {
   Future<void> _load() async {
     final requests = await StaffStore.instance.leaveRequests();
     final remaining = await StaffStore.instance.remainingAnnualDays();
+    final team = _canDecide ? await BerpOrg.leaveQueue() : <TeamLeave>[];
     if (!mounted) return;
     setState(() {
       _requests = requests;
       _remaining = remaining;
+      _team = team;
     });
   }
 
@@ -41,16 +50,64 @@ class _LeaveScreenState extends State<LeaveScreen> {
     await _load();
   }
 
+  Future<void> _decide(TeamLeave item, LeaveStatus status) async {
+    await BerpOrg.decideLeave(item.request.id, status);
+    await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return PatternPage(
       breadcrumb: 'Home > Leave',
       title: 'Leave',
       subtitle: '$_remaining ANNUAL DAYS LEFT',
-      bottom: const AppBottomNav(currentIndex: AppNavIndex.leave),
+      bottom: AppBottomNav(
+        currentIndex: StaffAccess.role.value.isOrgAdmin ? 4 : AppNavIndex.leave,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (_canDecide && _team.isNotEmpty) ...[
+            const PatternSectionLabel('Team requests'),
+            const SizedBox(height: 10),
+            PatternGroup(
+              children: [
+                for (final item in _team)
+                  PatternListRow(
+                    title: item.person?.name.isNotEmpty == true
+                        ? item.person!.name
+                        : item.request.kind.label,
+                    subtitle:
+                        '${item.request.kind.label}  ·  ${formatDay(item.request.start)} – ${formatDay(item.request.end)}  ·  ${item.request.status.label}${item.request.handoverEmail.isEmpty ? '' : '  ·  handover ${item.request.handoverEmail}'}',
+                    trailing: item.request.status == LeaveStatus.pending
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                onPressed: () =>
+                                    _decide(item, LeaveStatus.approved),
+                                icon: const Icon(
+                                  Icons.check_rounded,
+                                  color: Color(0xFF75BD42),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () =>
+                                    _decide(item, LeaveStatus.declined),
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  color: Color(0xFFF69306),
+                                ),
+                              ),
+                            ],
+                          )
+                        : const SizedBox.shrink(),
+                    onTap: () {},
+                  ),
+              ],
+            ),
+            const SizedBox(height: 22),
+          ],
           SizedBox(
             width: double.infinity,
             height: 46,
@@ -109,10 +166,16 @@ class _LeaveFormScreenState extends State<_LeaveFormScreen> {
   DateTime _start = DateTime.now().add(const Duration(days: 10));
   DateTime _end = DateTime.now().add(const Duration(days: 12));
   final _note = TextEditingController();
+  final _handoverEmail = TextEditingController();
+  final _handoverNote = TextEditingController();
+  Uint8List? _file;
+  bool _saving = false;
 
   @override
   void dispose() {
     _note.dispose();
+    _handoverEmail.dispose();
+    _handoverNote.dispose();
     super.dispose();
   }
 
@@ -135,8 +198,38 @@ class _LeaveFormScreenState extends State<_LeaveFormScreen> {
     });
   }
 
-  void _submit() {
+  Future<void> _pickFile() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1600,
+      imageQuality: 80,
+    );
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    if (!mounted) return;
+    setState(() => _file = bytes);
+  }
+
+  Future<void> _submit() async {
+    final email = _handoverEmail.text.trim();
+    final handoverNote = _handoverNote.text.trim();
+    if (!email.contains('@') || (handoverNote.isEmpty && _file == null)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Add the handover person’s email and a handover note or file.',
+          ),
+        ),
+      );
+      return;
+    }
     HapticFeedback.selectionClick();
+    setState(() => _saving = true);
+    var fileUrl = '';
+    if (_file != null) {
+      fileUrl = await BerpCloud.uploadHandover(_file!);
+    }
+    if (!mounted) return;
     Navigator.of(context).pop(
       LeaveRequest(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -144,7 +237,31 @@ class _LeaveFormScreenState extends State<_LeaveFormScreen> {
         start: _start,
         end: _end,
         note: _note.text.trim(),
+        handoverEmail: email,
+        handoverNote: handoverNote,
+        handoverFileUrl: fileUrl,
         status: LeaveStatus.pending,
+      ),
+    );
+  }
+
+  InputDecoration _field(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: PatternPage.body(size: 13, color: PatternPage.muted),
+      filled: true,
+      fillColor: const Color(0xFF121212),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: PatternPage.divider),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: PatternPage.divider),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: PatternPage.blue),
       ),
     );
   }
@@ -189,6 +306,34 @@ class _LeaveFormScreenState extends State<_LeaveFormScreen> {
           ),
           const SizedBox(height: 22),
           TextField(
+            controller: _handoverEmail,
+            keyboardType: TextInputType.emailAddress,
+            style: PatternPage.body(size: 13),
+            cursorColor: PatternPage.blue,
+            decoration: _field('Handover person’s email'),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _handoverNote,
+            maxLines: 3,
+            style: PatternPage.body(size: 13),
+            cursorColor: PatternPage.blue,
+            decoration: _field('Handover note'),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _pickFile,
+              icon: const Icon(Icons.attach_file_rounded, color: PatternPage.blue),
+              label: Text(
+                _file == null ? 'Attach handover file' : 'Handover file attached',
+                style: PatternPage.body(size: 13, color: PatternPage.blue),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
             controller: _note,
             maxLines: 3,
             style: PatternPage.body(size: 13),
@@ -217,7 +362,7 @@ class _LeaveFormScreenState extends State<_LeaveFormScreen> {
             width: double.infinity,
             height: 46,
             child: FilledButton(
-              onPressed: _submit,
+              onPressed: _saving ? null : _submit,
               style: FilledButton.styleFrom(
                 backgroundColor: PatternPage.blue,
                 foregroundColor: Colors.white,

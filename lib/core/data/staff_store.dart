@@ -19,6 +19,10 @@ class ClockSession {
     this.deviceOs,
     this.publicIp,
     this.multiDevicePriority = false,
+    this.clockInLat,
+    this.clockInLng,
+    this.clockOutLat,
+    this.clockOutLng,
   });
 
   final String id;
@@ -34,6 +38,10 @@ class ClockSession {
 
   /// True when this user used more than 3 distinct devices in the last 7 days.
   final bool multiDevicePriority;
+  final double? clockInLat;
+  final double? clockInLng;
+  final double? clockOutLat;
+  final double? clockOutLng;
 
   bool get isOpen => clockOut == null;
 
@@ -72,6 +80,10 @@ class ClockSession {
     'deviceOs': deviceOs ?? '',
     'publicIp': publicIp ?? '',
     'multiDevicePriority': multiDevicePriority ? '1' : '0',
+    'clockInLat': clockInLat?.toString() ?? '',
+    'clockInLng': clockInLng?.toString() ?? '',
+    'clockOutLat': clockOutLat?.toString() ?? '',
+    'clockOutLng': clockOutLng?.toString() ?? '',
   };
 
   factory ClockSession.fromMap(Map<String, dynamic> map) {
@@ -97,6 +109,10 @@ class ClockSession {
       multiDevicePriority:
           '${map['multiDevicePriority'] ?? ''}' == '1' ||
           map['multiDevicePriority'] == true,
+      clockInLat: double.tryParse('${map['clockInLat'] ?? ''}'),
+      clockInLng: double.tryParse('${map['clockInLng'] ?? ''}'),
+      clockOutLat: double.tryParse('${map['clockOutLat'] ?? ''}'),
+      clockOutLng: double.tryParse('${map['clockOutLng'] ?? ''}'),
     );
   }
 }
@@ -130,6 +146,9 @@ class LeaveRequest {
     required this.end,
     required this.note,
     required this.status,
+    this.handoverEmail = '',
+    this.handoverNote = '',
+    this.handoverFileUrl = '',
   });
 
   final String id;
@@ -138,6 +157,9 @@ class LeaveRequest {
   final DateTime end;
   final String note;
   final LeaveStatus status;
+  final String handoverEmail;
+  final String handoverNote;
+  final String handoverFileUrl;
 
   int get days {
     final from = DateTime(start.year, start.month, start.day);
@@ -152,6 +174,9 @@ class LeaveRequest {
     'end': end.toIso8601String(),
     'note': note,
     'status': status.name,
+    'handoverEmail': handoverEmail,
+    'handoverNote': handoverNote,
+    'handoverFileUrl': handoverFileUrl,
   };
 
   factory LeaveRequest.fromMap(Map<String, dynamic> map) {
@@ -164,6 +189,9 @@ class LeaveRequest {
       start: DateTime.tryParse('${map['start'] ?? ''}') ?? DateTime.now(),
       end: DateTime.tryParse('${map['end'] ?? ''}') ?? DateTime.now(),
       note: '${map['note'] ?? ''}',
+      handoverEmail: '${map['handoverEmail'] ?? ''}',
+      handoverNote: '${map['handoverNote'] ?? ''}',
+      handoverFileUrl: '${map['handoverFileUrl'] ?? ''}',
       status: LeaveStatus.values.firstWhere(
         (s) => s.name == map['status'],
         orElse: () => LeaveStatus.pending,
@@ -179,8 +207,17 @@ class AppraisalRecord {
     required this.reviewer,
     required this.period,
     required this.summary,
+    this.statusLabel = '',
+    this.department = '',
+    this.goals = '',
+    this.strengths = '',
+    this.achievements = '',
+    this.developmentPlan = '',
+    this.managerComments = '',
     this.rating,
     this.completed = false,
+    this.employeeName = '',
+    this.reviewerEmail = '',
   });
 
   final String id;
@@ -188,8 +225,22 @@ class AppraisalRecord {
   final String reviewer;
   final String period;
   final String summary;
+  final String statusLabel;
+  final String department;
+  final String goals;
+  final String strengths;
+  final String achievements;
+  final String developmentPlan;
+  final String managerComments;
   final double? rating;
   final bool completed;
+  final String employeeName;
+  final String reviewerEmail;
+
+  String get statusText {
+    if (statusLabel.trim().isNotEmpty) return statusLabel.trim();
+    return completed ? 'Completed' : 'Open';
+  }
 
   Map<String, String> toMap() => {
     'id': id,
@@ -290,74 +341,24 @@ class StaffStore {
   static const _appraisalKey = 'staff_appraisal_json';
   static const _updatesKey = 'staff_updates_json';
   static const _seededKey = 'staff_content_seeded';
+  static const _mockUpdateIds = {'upd-1', 'upd-2', 'upd-3'};
 
   static const annualAllowance = 21;
 
-  Future<void> _seedIfNeeded() async {
+  /// Drops the sample reviews and notices that older installs saved locally.
+  Future<void> _forgetMockContent() async {
     final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool(_seededKey) ?? false) return;
-
-    final now = DateTime.now();
-    final appraisals = [
-      AppraisalRecord(
-        id: 'apr-q1',
-        title: 'Q1 performance review',
-        reviewer: 'Ngozi Adeyemi · People',
-        period: 'Jan – Mar 2026',
-        summary:
-            'Strong ownership on ground coordination. Keep building handover notes so the next shift is never guessing.',
-        rating: 4.4,
-        completed: true,
-      ),
-      AppraisalRecord(
-        id: 'apr-mid',
-        title: 'Mid-year check-in',
-        reviewer: 'Ibrahim Bello · Operations',
-        period: 'Due Jul 2026',
-        summary:
-            'A short conversation on goals, support, and any blockers before the second half of the year.',
-      ),
-    ];
-
-    final updates = [
-      StaffUpdate(
-        id: 'upd-1',
-        author: 'Adaeze Okafor',
-        role: 'Operations',
-        title: 'Lagos roster is live',
-        body:
-            'Next week’s ground and hangar roster is posted. Confirm your shifts before Friday close of play.',
-        at: now.subtract(const Duration(hours: 3)),
-      ),
-      StaffUpdate(
-        id: 'upd-2',
-        author: 'Chinedu Bassey',
-        role: 'People',
-        title: 'Appraisal window opens Monday',
-        body:
-            'Self-reviews open Monday 09:00. Please complete yours before the manager conversation is booked.',
-        at: now.subtract(const Duration(hours: 9)),
-      ),
-      StaffUpdate(
-        id: 'upd-3',
-        author: 'Fatima Yusuf',
-        role: 'People',
-        title: 'Leave requests — 10 working days',
-        body:
-            'Annual leave still needs 10 working days’ notice except for sick or emergency cover.',
-        at: now.subtract(const Duration(days: 1, hours: 2)),
-      ),
-    ];
-
-    await prefs.setString(
-      _appraisalKey,
-      jsonEncode([for (final item in appraisals) item.toMap()]),
-    );
-    await prefs.setString(
-      _updatesKey,
-      jsonEncode([for (final item in updates) item.toMap()]),
-    );
-    await prefs.setBool(_seededKey, true);
+    await prefs.remove(_appraisalKey);
+    await prefs.remove(_seededKey);
+    final updates = _decode(
+      prefs.getString(_updatesKey),
+      StaffUpdate.fromMap,
+    ).where((item) => !_mockUpdateIds.contains(item.id)).toList();
+    if (updates.isEmpty) {
+      await prefs.remove(_updatesKey);
+      return;
+    }
+    await _save(_updatesKey, [for (final row in updates) row.toMap()]);
   }
 
   Future<List<ClockSession>> _localSessions() async {
@@ -426,7 +427,12 @@ class StaffStore {
     return hoursOnLagosDay(await sessions(), lagosToday(now), now);
   }
 
-  Future<ClockSession> clockIn({String? siteId, String? siteName}) async {
+  Future<ClockSession> clockIn({
+    String? siteId,
+    String? siteName,
+    double? latitude,
+    double? longitude,
+  }) async {
     final existing = await openSession();
     if (existing != null) return existing;
     final device = await DeviceFingerprint.current();
@@ -435,6 +441,8 @@ class StaffStore {
         siteId: siteId,
         siteName: siteName,
         device: device,
+        latitude: latitude,
+        longitude: longitude,
       );
       if (cloud == null) {
         throw StateError('Could not save clock-in to BERP.');
@@ -451,17 +459,26 @@ class StaffStore {
       deviceModel: device.model,
       deviceOs: device.os,
       publicIp: device.publicIp,
+      clockInLat: latitude,
+      clockInLng: longitude,
     );
     final all = [...await _localSessions(), session];
     await _save(_clockKey, [for (final item in all) item.toMap()]);
     return session;
   }
 
-  Future<ClockSession?> clockOut() async {
+  Future<ClockSession?> clockOut({
+    double? latitude,
+    double? longitude,
+  }) async {
     final open = await openSession();
     if (open == null) return null;
     try {
-      final cloud = await BerpCloud.clockOut(open.id);
+      final cloud = await BerpCloud.clockOut(
+        open.id,
+        latitude: latitude,
+        longitude: longitude,
+      );
       if (cloud != null) {
         await _clearLocalClock();
         return cloud;
@@ -483,6 +500,10 @@ class StaffStore {
       deviceOs: current.deviceOs,
       publicIp: current.publicIp,
       multiDevicePriority: current.multiDevicePriority,
+      clockInLat: current.clockInLat,
+      clockInLng: current.clockInLng,
+      clockOutLat: latitude ?? current.clockOutLat,
+      clockOutLng: longitude ?? current.clockOutLng,
     );
     all[index] = updated;
     await _save(_clockKey, [for (final item in all) item.toMap()]);
@@ -523,26 +544,30 @@ class StaffStore {
   }
 
   Future<List<AppraisalRecord>> appraisals() async {
+    await _forgetMockContent();
     try {
-      final cloud = await BerpCloud.appraisals();
-      if (cloud.isNotEmpty) return cloud;
-    } catch (_) {}
-    await _seedIfNeeded();
-    final prefs = await SharedPreferences.getInstance();
-    return _decode(prefs.getString(_appraisalKey), AppraisalRecord.fromMap);
+      return await BerpCloud.appraisals();
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<List<StaffUpdate>> updates() async {
+    await _forgetMockContent();
     try {
       final cloud = await BerpCloud.updates();
       if (cloud.isNotEmpty || AuthService.isSignedIn) {
         cloud.sort((a, b) => b.at.compareTo(a.at));
         return cloud;
       }
-    } catch (_) {}
-    await _seedIfNeeded();
+    } catch (_) {
+      if (AuthService.isSignedIn) return [];
+    }
     final prefs = await SharedPreferences.getInstance();
-    final list = _decode(prefs.getString(_updatesKey), StaffUpdate.fromMap);
+    final list = _decode(
+      prefs.getString(_updatesKey),
+      StaffUpdate.fromMap,
+    ).where((item) => !_mockUpdateIds.contains(item.id)).toList();
     list.sort((a, b) => b.at.compareTo(a.at));
     return list;
   }

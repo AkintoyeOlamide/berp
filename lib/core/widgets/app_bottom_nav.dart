@@ -3,10 +3,19 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../features/admin/admin_dashboard_screen.dart';
+import '../../features/admin/admin_more_screen.dart';
+import '../../features/admin/attendance_history_screen.dart';
+import '../../features/admin/live_attendance_screen.dart';
+import '../../features/admin/staff_directory_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/staff/appraisals_screen.dart';
 import '../../features/staff/leave_screen.dart';
+import '../../features/staff/my_team_screen.dart';
 import '../../features/staff/schedule_screen.dart';
+import '../../features/staff/staff_home_screen.dart';
 import '../../features/staff/updates_screen.dart';
+import '../auth/staff_access.dart';
 import '../theme/app_colors.dart';
 import 'premium_ui.dart';
 
@@ -55,6 +64,60 @@ const appNavDestinations = <AppNavDestination>[
   ),
 ];
 
+List<AppNavDestination> destinationsFor(BerpRole role) {
+  if (role.isOrgAdmin) {
+    return const [
+      AppNavDestination(Icons.space_dashboard_outlined, Icons.space_dashboard_rounded, 'Home'),
+      AppNavDestination(Icons.groups_outlined, Icons.groups_rounded, 'Staff'),
+      AppNavDestination(Icons.my_location_outlined, Icons.my_location_rounded, 'Live'),
+      AppNavDestination(Icons.history_rounded, Icons.history_rounded, 'History'),
+      AppNavDestination(Icons.grid_view_outlined, Icons.grid_view_rounded, 'More'),
+    ];
+  }
+  if (role == BerpRole.manager) {
+    return const [
+      AppNavDestination(Icons.home_outlined, Icons.home_rounded, 'Home'),
+      AppNavDestination(Icons.groups_outlined, Icons.groups_rounded, 'Team'),
+      AppNavDestination(Icons.edit_note_outlined, Icons.edit_note_rounded, 'Leave'),
+      AppNavDestination(Icons.fact_check_outlined, Icons.fact_check_rounded, 'Reviews'),
+      AppNavDestination(
+        Icons.notifications_none_rounded,
+        Icons.notifications_rounded,
+        'Notices',
+      ),
+    ];
+  }
+  return appNavDestinations;
+}
+
+Widget pageForRole(BerpRole role, int target) {
+  if (role.isOrgAdmin) {
+    return switch (target) {
+      1 => const StaffDirectoryScreen(),
+      2 => const LiveAttendanceScreen(),
+      3 => const AttendanceHistoryScreen(),
+      4 => const AdminMoreScreen(),
+      _ => const AdminDashboardScreen(),
+    };
+  }
+  if (role == BerpRole.manager) {
+    return switch (target) {
+      1 => const MyTeamScreen(),
+      2 => const LeaveScreen(),
+      3 => const AppraisalsScreen(),
+      4 => const UpdatesScreen(),
+      _ => const StaffHomeScreen(),
+    };
+  }
+  return switch (target) {
+    AppNavIndex.schedule => const ScheduleScreen(),
+    AppNavIndex.leave => const LeaveScreen(),
+    AppNavIndex.notices => const UpdatesScreen(),
+    AppNavIndex.settings => const SettingsScreen(),
+    _ => const StaffHomeScreen(),
+  };
+}
+
 /// Shared minimize state so spacers / page padding can react.
 final ValueNotifier<bool> appNavMinimized = ValueNotifier(false);
 
@@ -74,13 +137,7 @@ void navigateAppTab(
     return;
   }
 
-  final page = switch (target) {
-    AppNavIndex.schedule => const ScheduleScreen(),
-    AppNavIndex.leave => const LeaveScreen(),
-    AppNavIndex.notices => const UpdatesScreen(),
-    AppNavIndex.settings => const SettingsScreen(),
-    _ => throw ArgumentError('Unknown tab index: $target'),
-  };
+  final page = pageForRole(StaffAccess.role.value, target);
 
   if (current == AppNavIndex.home) {
     navigator.push(premiumRoute(page));
@@ -266,21 +323,27 @@ class _ExpandedNav extends StatelessWidget {
               ),
             ),
           ),
-          Row(
-            children: [
-              for (var i = 0; i < appNavDestinations.length; i++)
-                Expanded(
-                  child: _NavTab(
-                    destination: appNavDestinations[i],
-                    selected: currentIndex == i,
-                    onTap: () => navigateAppTab(
-                      context,
-                      target: i,
-                      current: currentIndex,
+          ValueListenableBuilder<BerpRole>(
+            valueListenable: StaffAccess.role,
+            builder: (context, role, _) {
+              final destinations = destinationsFor(role);
+              return Row(
+                children: [
+                  for (var i = 0; i < destinations.length; i++)
+                    Expanded(
+                      child: _NavTab(
+                        destination: destinations[i],
+                        selected: currentIndex == i,
+                        onTap: () => navigateAppTab(
+                          context,
+                          target: i,
+                          current: currentIndex,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-            ],
+                ],
+              );
+            },
           ),
         ],
       ),

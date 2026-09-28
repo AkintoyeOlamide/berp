@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
-import '../staff/staff_home_screen.dart';
+import '../../core/auth/signed_in_home.dart';
 
 /// Set a new password after the user opens the reset link from email.
 class ResetPasswordScreen extends StatefulWidget {
@@ -83,10 +83,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       await AuthService.updatePassword(password);
       if (!mounted) return;
       setState(() => _loading = false);
+      final home = await signedInHome();
+      if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         PageRouteBuilder<void>(
           transitionDuration: const Duration(milliseconds: 450),
-          pageBuilder: (_, _, _) => const StaffHomeScreen(),
+          pageBuilder: (_, _, _) => home,
           transitionsBuilder: (_, animation, _, child) {
             return FadeTransition(
               opacity: CurvedAnimation(

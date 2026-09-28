@@ -6,10 +6,10 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/auth/signed_in_home.dart';
 import '../../core/boot.dart';
 import '../../core/responsive/responsive.dart';
 import '../../core/theme/app_colors.dart';
-import '../staff/staff_home_screen.dart';
 import '../welcome/welcome_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -105,8 +105,9 @@ class _SplashScreenState extends State<SplashScreen>
     } catch (_) {}
     if (!mounted) return;
     final next = AuthService.isSignedIn
-        ? const StaffHomeScreen()
+        ? await signedInHome()
         : const WelcomeScreen();
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 240),
