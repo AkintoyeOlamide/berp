@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../core/auth/staff_access.dart';
 import '../../core/data/staff_store.dart';
 import '../../core/widgets/app_bottom_nav.dart';
 import '../../core/widgets/pattern_page.dart';
-import '../admin/notifications_screen.dart';
 
 class UpdatesScreen extends StatefulWidget {
   const UpdatesScreen({super.key});
@@ -39,14 +37,6 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
     setState(() => _items = items);
   }
 
-  bool get _canPost => StaffAccess.role.value.isOrgAdmin;
-
-  int get _navIndex {
-    final role = StaffAccess.role.value;
-    if (role == BerpRole.manager || role.isOrgAdmin) return 4;
-    return AppNavIndex.notices;
-  }
-
   Future<void> _post() async {
     final title = _title.text.trim();
     final body = _body.text.trim();
@@ -57,15 +47,7 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
       return;
     }
     HapticFeedback.selectionClick();
-    try {
-      await StaffStore.instance.postUpdate(title: title, body: body);
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
-      );
-      return;
-    }
+    await StaffStore.instance.postUpdate(title: title, body: body);
     _title.clear();
     _body.clear();
     setState(() => _composing = false);
@@ -78,27 +60,10 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
       breadcrumb: 'Home > Updates',
       title: 'Staff updates',
       subtitle: 'TEAM BOARD',
-      bottom: AppBottomNav(currentIndex: _navIndex),
+      bottom: const AppBottomNav(currentIndex: AppNavIndex.updates),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const NotificationsScreen(),
-                  ),
-                );
-              },
-              child: Text(
-                'Notifications',
-                style: PatternPage.body(size: 13, color: PatternPage.blue),
-              ),
-            ),
-          ),
-          if (_canPost)
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
@@ -156,11 +121,6 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
           ],
           const PatternSectionLabel('From other staff'),
           const SizedBox(height: 10),
-          if (_items.isEmpty)
-            Text(
-              'No notices yet.',
-              style: PatternPage.body(size: 13, color: PatternPage.muted),
-            ),
           for (final item in _items) ...[
             Container(
               width: double.infinity,

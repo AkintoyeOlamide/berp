@@ -6,8 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
-import '../../core/auth/signed_in_home.dart';
 import '../../core/theme/app_colors.dart';
+import '../staff/staff_home_screen.dart';
 
 enum _ResetStep { email, code, password }
 
@@ -233,12 +233,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _finished = true;
       AuthService.suppressAuthNavigation = false;
       setState(() => _loading = false);
-      final home = await signedInHome();
-      if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         PageRouteBuilder<void>(
           transitionDuration: const Duration(milliseconds: 450),
-          pageBuilder: (_, _, _) => home,
+          pageBuilder: (_, _, _) => const StaffHomeScreen(),
           transitionsBuilder: (_, animation, _, child) {
             return FadeTransition(
               opacity: CurvedAnimation(

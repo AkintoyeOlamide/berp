@@ -69,10 +69,6 @@ abstract final class BerpCloud {
           deviceOs: row.deviceOs,
           publicIp: row.publicIp,
           multiDevicePriority: true,
-          clockInLat: row.clockInLat,
-          clockInLng: row.clockInLng,
-          clockOutLat: row.clockOutLat,
-          clockOutLng: row.clockOutLng,
         ),
     ];
   }
@@ -82,8 +78,6 @@ abstract final class BerpCloud {
     String? siteName,
     DateTime? clockIn,
     DeviceContext? device,
-    double? latitude,
-    double? longitude,
   }) async {
     final db = _client;
     final uid = userId;
@@ -97,9 +91,6 @@ abstract final class BerpCloud {
       'clock_in_lagos': formatLagosStamp(at),
       'site_id': siteId,
       'site_name': siteName,
-      if (latitude != null) 'clock_in_lat': latitude,
-      if (longitude != null) 'clock_in_lng': longitude,
-      if (_isUuid(siteId)) 'location_id': siteId,
       ...fingerprint.toPayload(),
     };
     try {
@@ -112,9 +103,6 @@ abstract final class BerpCloud {
       return _clockFromRow(Map<String, dynamic>.from(res as Map));
     } catch (_) {
       payload.remove('clock_in_lagos');
-      payload.remove('clock_in_lat');
-      payload.remove('clock_in_lng');
-      payload.remove('location_id');
       try {
         final res = await db
             .from('clock_sessions')
@@ -163,11 +151,7 @@ abstract final class BerpCloud {
     } catch (_) {}
   }
 
-  static Future<ClockSession?> clockOut(
-    String sessionId, {
-    double? latitude,
-    double? longitude,
-  }) async {
+  static Future<ClockSession?> clockOut(String sessionId) async {
     final db = _client;
     final uid = userId;
     if (db == null || uid == null) return null;
@@ -175,8 +159,6 @@ abstract final class BerpCloud {
     final payload = {
       'clock_out': out.toUtc().toIso8601String(),
       'clock_out_lagos': formatLagosStamp(out),
-      if (latitude != null) 'clock_out_lat': latitude,
-      if (longitude != null) 'clock_out_lng': longitude,
     };
     try {
       final res = await db
@@ -191,8 +173,6 @@ abstract final class BerpCloud {
       return _clockFromRow(Map<String, dynamic>.from(res));
     } catch (_) {
       payload.remove('clock_out_lagos');
-      payload.remove('clock_out_lat');
-      payload.remove('clock_out_lng');
       final res = await db
           .from('clock_sessions')
           .update(payload)
@@ -226,28 +206,20 @@ abstract final class BerpCloud {
     final db = _client;
     final uid = userId;
     if (db == null || uid == null) return null;
-    final payload = <String, dynamic>{
-      'app_id': appId,
-      'user_id': uid,
-      'kind': request.kind.name,
-      'start_date': _dateOnly(request.start),
-      'end_date': _dateOnly(request.end),
-      'note': request.note,
-      'status': request.status.name,
-      'handover_email': request.handoverEmail,
-      'handover_note': request.handoverNote,
-      'handover_file_url': request.handoverFileUrl,
-    };
-    try {
-      final res = await db.from('leave_requests').insert(payload).select().single();
-      return _leaveFromRow(Map<String, dynamic>.from(res as Map));
-    } catch (_) {
-      payload.remove('handover_email');
-      payload.remove('handover_note');
-      payload.remove('handover_file_url');
-      final res = await db.from('leave_requests').insert(payload).select().single();
-      return _leaveFromRow(Map<String, dynamic>.from(res as Map));
-    }
+    final res = await db
+        .from('leave_requests')
+        .insert({
+          'app_id': appId,
+          'user_id': uid,
+          'kind': request.kind.name,
+          'start_date': _dateOnly(request.start),
+          'end_date': _dateOnly(request.end),
+          'note': request.note,
+          'status': request.status.name,
+        })
+        .select()
+        .single();
+    return _leaveFromRow(Map<String, dynamic>.from(res as Map));
   }
 
   static Future<List<StaffUpdate>> updates() async {
@@ -287,108 +259,20 @@ abstract final class BerpCloud {
     return _updateFromRow(Map<String, dynamic>.from(res as Map));
   }
 
-  static const _appraisalSelect =
-      'id, employee_id, reviewer_id, cycle_id, job_title, review_period, department, goals, strengths, achievements, development_plan, manager_comments, overall_score, status, created_at, submitted_at, completed_at, employee:legacy_employee_profiles!employee_id!inner(email, full_name), reviewer:legacy_employee_profiles!reviewer_id(email, full_name, job_title), cycle:appraisal_cycles!cycle_id(title, start_date, end_date, status)';
-
-  /// BHR links each appraisal to a work email on legacy_employee_profiles.
   static Future<List<AppraisalRecord>> appraisals() async {
     final db = _client;
-    final email = AuthService.currentUser?.email?.trim();
-    if (db == null || email == null || email.isEmpty) return [];
+    final uid = userId;
+    if (db == null || uid == null) return [];
     final res = await db
         .from('appraisals')
-        .select(
-          _appraisalSelect,
-        )
-        .ilike('employee.email', email)
+        .select()
+        .eq('employee_id', uid)
         .order('created_at', ascending: false);
     return [
       for (final row in res as List<dynamic>)
         if (row is Map<String, dynamic>) _appraisalFromRow(row),
     ];
   }
-
-  static Future<List<AppraisalRecord>> reviewerAppraisals() async {
-    final db = _client;
-    final email = AuthService.currentUser?.email?.trim();
-    if (db == null || email == null || email.isEmpty) return [];
-    final res = await db
-        .from('appraisals')
-        .select(
-          'id, employee_id, reviewer_id, cycle_id, job_title, review_period, department, goals, strengths, achievements, development_plan, manager_comments, overall_score, status, created_at, submitted_at, completed_at, employee:legacy_employee_profiles!employee_id(email, full_name), reviewer:legacy_employee_profiles!reviewer_id!inner(email, full_name, job_title), cycle:appraisal_cycles!cycle_id(title, start_date, end_date, status)',
-        )
-        .ilike('reviewer.email', email)
-        .order('created_at', ascending: false);
-    return [
-      for (final row in res as List<dynamic>)
-        if (row is Map<String, dynamic>) _appraisalFromRow(row),
-    ];
-  }
-
-  static Future<List<AppraisalRecord>> appraisalsForEmails(
-    List<String> emails,
-  ) async {
-    final db = _client;
-    final cleaned = emails
-        .map((email) => email.trim())
-        .where((email) => email.isNotEmpty)
-        .toSet()
-        .toList();
-    if (db == null || cleaned.isEmpty) return [];
-    final res = await db
-        .from('appraisals')
-        .select(_appraisalSelect)
-        .or(cleaned.map((email) => 'employee.email.ilike.$email').join(','))
-        .order('created_at', ascending: false)
-        .limit(200);
-    return [
-      for (final row in res as List<dynamic>)
-        if (row is Map<String, dynamic>) _appraisalFromRow(row),
-    ];
-  }
-
-  static Future<List<AppraisalRecord>> organisationAppraisals() async {
-    final db = _client;
-    if (db == null) return [];
-    final res = await db
-        .from('appraisals')
-        .select(
-          'id, employee_id, reviewer_id, cycle_id, job_title, review_period, department, goals, strengths, achievements, development_plan, manager_comments, overall_score, status, created_at, submitted_at, completed_at, employee:legacy_employee_profiles!employee_id(email, full_name), reviewer:legacy_employee_profiles!reviewer_id(email, full_name, job_title), cycle:appraisal_cycles!cycle_id(title, start_date, end_date, status)',
-        )
-        .order('created_at', ascending: false)
-        .limit(200);
-    return [
-      for (final row in res as List<dynamic>)
-        if (row is Map<String, dynamic>) _appraisalFromRow(row),
-    ];
-  }
-
-  static Future<void> submitAppraisal({
-    required String id,
-    required String comments,
-    required double score,
-  }) async {
-    final db = _client;
-    if (db == null) return;
-    final payload = <String, dynamic>{
-      'manager_comments': comments,
-      'overall_score': score,
-      'status': 'submitted',
-      'submitted_at': DateTime.now().toUtc().toIso8601String(),
-    };
-    try {
-      await db.from('appraisals').update(payload).eq('id', id);
-    } catch (_) {
-      payload.remove('submitted_at');
-      await db.from('appraisals').update(payload).eq('id', id);
-    }
-  }
-
-  static ClockSession clockFromRow(Map<String, dynamic> row) =>
-      _clockFromRow(row);
-
-  static LeaveRequest leaveFromRow(Map<String, dynamic> row) =>
-      _leaveFromRow(row);
 
   static ClockSession _clockFromRow(Map<String, dynamic> row) {
     return ClockSession(
@@ -403,10 +287,6 @@ abstract final class BerpCloud {
       deviceModel: _emptyToNull(row['device_model']),
       deviceOs: _emptyToNull(row['device_os']),
       publicIp: _emptyToNull(row['public_ip']),
-      clockInLat: (row['clock_in_lat'] as num?)?.toDouble(),
-      clockInLng: (row['clock_in_lng'] as num?)?.toDouble(),
-      clockOutLat: (row['clock_out_lat'] as num?)?.toDouble(),
-      clockOutLng: (row['clock_out_lng'] as num?)?.toDouble(),
     );
   }
 
@@ -420,9 +300,6 @@ abstract final class BerpCloud {
       start: DateTime.tryParse('${row['start_date']}') ?? DateTime.now(),
       end: DateTime.tryParse('${row['end_date']}') ?? DateTime.now(),
       note: '${row['note'] ?? ''}',
-      handoverEmail: '${row['handover_email'] ?? ''}',
-      handoverNote: '${row['handover_note'] ?? ''}',
-      handoverFileUrl: '${row['handover_file_url'] ?? ''}',
       status: LeaveStatus.values.firstWhere(
         (s) => s.name == row['status'],
         orElse: () => LeaveStatus.pending,
@@ -509,23 +386,6 @@ abstract final class BerpCloud {
     return _profileFromRow(uid: uid, user: user, row: res);
   }
 
-  static Future<String> uploadHandover(Uint8List bytes) async {
-    final db = _client;
-    final uid = userId;
-    if (db == null || uid == null) return '';
-    try {
-      final path = '$uid/handover-${DateTime.now().millisecondsSinceEpoch}.jpg';
-      await db.storage.from('berp-avatars').uploadBinary(
-        path,
-        bytes,
-        fileOptions: const FileOptions(contentType: 'image/jpeg'),
-      );
-      return db.storage.from('berp-avatars').getPublicUrl(path);
-    } catch (_) {
-      return '';
-    }
-  }
-
   static Future<String> _uploadAvatar(
     SupabaseClient db,
     String uid,
@@ -566,100 +426,21 @@ abstract final class BerpCloud {
           ? (row!['joined_year'] as num).toInt()
           : int.tryParse('${row?['joined_year'] ?? ''}'),
       avatarUrl: _emptyToNull(row?['avatar_url']) ?? '',
-      role: _emptyToNull(row?['role']) ?? 'staff',
-      managerId: _emptyToNull(row?['manager_id']),
     );
   }
 
   static AppraisalRecord _appraisalFromRow(Map<String, dynamic> row) {
-    final reviewerRow = _asMap(row['reviewer']);
-    final employeeRow = _asMap(row['employee']);
-    final cycle = _asMap(row['cycle']);
-    final reviewerName = _text(reviewerRow?['full_name']);
-    final reviewerRole = _text(reviewerRow?['job_title']);
-    final reviewer = reviewerName.isEmpty
-        ? 'Reviewer'
-        : reviewerRole.isEmpty
-        ? reviewerName
-        : '$reviewerName · $reviewerRole';
-    final cycleTitle = _text(cycle?['title']);
-    final jobTitle = _text(row['job_title']);
-    final reviewPeriod = _text(row['review_period']);
-    final start = _text(cycle?['start_date']);
-    final end = _text(cycle?['end_date']);
-    final period = reviewPeriod.isNotEmpty
-        ? reviewPeriod
-        : (start.isNotEmpty && end.isNotEmpty)
-        ? '$start – $end'
-        : cycleTitle;
-    final title = cycleTitle.isNotEmpty
-        ? cycleTitle
-        : jobTitle.isNotEmpty
-        ? jobTitle
-        : period.isNotEmpty
-        ? period
-        : 'Performance review';
-    final status = _text(row['status']);
-    final completed =
-        _text(row['completed_at']).isNotEmpty ||
-        const {
-          'completed',
-          'closed',
-          'approved',
-          'done',
-          'finalized',
-          'finalised',
-        }.contains(status.toLowerCase());
-    final goals = _text(row['goals']);
-    final strengths = _text(row['strengths']);
-    final achievements = _text(row['achievements']);
-    final developmentPlan = _text(row['development_plan']);
-    final managerComments = _text(row['manager_comments']);
-    final summary = [
-      if (managerComments.isNotEmpty) managerComments,
-      if (strengths.isNotEmpty) strengths,
-      if (achievements.isNotEmpty) achievements,
-      if (goals.isNotEmpty) goals,
-      if (developmentPlan.isNotEmpty) developmentPlan,
-    ].join('\n\n');
-    final score = row['overall_score'];
+    final reviewer = '${row['reviewer_id'] ?? ''}'.trim();
+    final status = '${row['status'] ?? ''}';
     return AppraisalRecord(
       id: '${row['id']}',
-      title: title,
-      reviewer: reviewer,
-      period: period,
-      summary: summary,
-      statusLabel: status.isEmpty
-          ? ''
-          : '${status[0].toUpperCase()}${status.substring(1)}',
-      department: _text(row['department']),
-      goals: goals,
-      strengths: strengths,
-      achievements: achievements,
-      developmentPlan: developmentPlan,
-      managerComments: managerComments,
-      rating: score is num ? score.toDouble() : double.tryParse('$score'),
-      completed: completed,
-      employeeName: _text(employeeRow?['full_name']),
-      reviewerEmail: _text(reviewerRow?['email']),
+      title: '${row['job_title'] ?? 'Performance review'}',
+      reviewer: reviewer.isEmpty ? 'People' : 'Line manager',
+      period: '${row['review_period'] ?? ''}',
+      summary: '${row['manager_comments'] ?? status}',
+      rating: (row['overall_score'] as num?)?.toDouble(),
+      completed: status == 'completed' || status == 'submitted',
     );
-  }
-
-  static Map<String, dynamic>? _asMap(Object? value) {
-    if (value is Map<String, dynamic>) return value;
-    if (value is Map) {
-      return value.map((key, item) => MapEntry(key.toString(), item));
-    }
-    if (value is List && value.isNotEmpty) return _asMap(value.first);
-    return null;
-  }
-
-  static String _text(Object? value) => '${value ?? ''}'.trim();
-
-  static bool _isUuid(String? value) {
-    return RegExp(
-      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
-    ).hasMatch(value ?? '');
   }
 
   static Future<List<BerpPushMessage>> pendingAdminPushes() async {

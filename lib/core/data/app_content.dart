@@ -96,6 +96,13 @@ class TeamMember {
   final String role;
 }
 
+class ClientStory {
+  const ClientStory(this.name, this.title, this.quote);
+  final String name;
+  final String title;
+  final String quote;
+}
+
 class FaqItem {
   const FaqItem(this.question, this.answer);
   final String question;
@@ -384,6 +391,28 @@ abstract final class AppContent {
     TeamMember('Flight Operations', 'Planning, permits & on-the-day coordination'),
     TeamMember('Ground Desk', 'Lagos head office & airport operations'),
     TeamMember('UK Representation', 'Belfast desk for international coordination'),
+  ];
+
+  static const stories = <ClientStory>[
+    ClientStory(
+      'Chinedu Okafor',
+      'Founder, Lagos-based investment firm',
+      'VMO Aero has revolutionized the way I conduct business travel. The '
+          'attention to detail, punctuality, and luxurious experience have '
+          'made them my exclusive choice for private aviation.',
+    ),
+    ClientStory(
+      'Amina Bello',
+      'Family Office Principal',
+      'Ownership finally feels accountable. One partner from acquisition '
+          'through day-to-day operations — without chasing vendors.',
+    ),
+    ClientStory(
+      'Tomiwa Adeyemi',
+      'Group CEO, West African conglomerate',
+      'Charter and management under one roof means fewer gaps and clearer '
+          'standards every time we fly.',
+    ),
   ];
 
   static const faqs = <FaqItem>[

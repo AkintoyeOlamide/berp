@@ -4,13 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../core/auth/staff_access.dart';
 import '../../core/data/berp_cloud.dart';
-import '../../core/data/berp_org.dart';
 import '../../core/data/clock_sites.dart';
 import '../../core/data/staff_store.dart';
 import '../../core/location/clock_fence.dart';
-import '../../core/location/shift_location.dart';
 import '../../core/notifications/push_inbox.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_bottom_nav.dart';
@@ -74,9 +71,6 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
     });
     _syncTicker();
     unawaited(PushInbox.sync());
-    try {
-      StaffAccess.apply(await BerpCloud.fetchProfile());
-    } catch (_) {}
   }
 
   Future<String?> _avatar() async {
@@ -89,7 +83,6 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
   }
 
   void _syncTicker() {
-    ShiftLocationPing.follow(_open?.id);
     if (_open == null) {
       _tick?.cancel();
       _tick = null;
@@ -106,8 +99,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
     setState(() => _busy = true);
     try {
       if (_open == null) {
-        final sites = await BerpOrg.activeSites();
-        final check = await ClockFence.checkIn(sites: sites);
+        final check = await ClockFence.checkIn();
         if (!mounted) return;
         if (!check.ok || check.site == null) {
           setState(() => _busy = false);
@@ -117,23 +109,9 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
         await StaffStore.instance.clockIn(
           siteId: check.site!.id,
           siteName: check.site!.name,
-          latitude: check.latitude,
-          longitude: check.longitude,
         );
       } else {
-        double? latitude;
-        double? longitude;
-        try {
-          final sites = await BerpOrg.activeSites();
-          final check = await ClockFence.checkIn(sites: sites);
-          latitude = check.latitude;
-          longitude = check.longitude;
-        } catch (_) {}
-        await StaffStore.instance.clockOut(
-          latitude: latitude,
-          longitude: longitude,
-        );
-        ShiftLocationPing.stop();
+        await StaffStore.instance.clockOut();
       }
     } catch (error) {
       if (!mounted) return;
@@ -232,7 +210,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                                   '$_greeting, ${StaffIdentity.firstName} 👋',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: _sans(size: 12, weight: FontWeight.w500),
+                                  style: _sans(size: 13.5, weight: FontWeight.w500),
                                 ),
                               ),
                               _BellButton(
@@ -246,13 +224,13 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                             onTap: () => _openPage(const ProfileScreen()),
                             child: Text(
                               StaffIdentity.firstName,
-                              style: _display(size: 20, weight: FontWeight.w700),
+                              style: _display(size: 32, weight: FontWeight.w700),
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Staff Portal  •  ${formatLagosLongDay(now)}',
-                            style: _sans(size: 11, color: AppColors.muted),
+                            style: _sans(size: 12, color: AppColors.muted),
                           ),
                           const SizedBox(height: 18),
                           _ClockCard(
@@ -267,7 +245,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                           const SizedBox(height: 22),
                           Text(
                             'At a Glance',
-                            style: _sans(size: 11.5, weight: FontWeight.w600),
+                            style: _sans(size: 16, weight: FontWeight.w600),
                           ),
                           const SizedBox(height: 12),
                           SizedBox(
@@ -467,12 +445,12 @@ class _ClockCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 onShift ? 'Active shift' : 'Off shift',
-                style: _sans(size: 11, weight: FontWeight.w500),
+                style: _sans(size: 12.5, weight: FontWeight.w500),
               ),
               const Spacer(),
               Text(
                 onShift ? 'Started at $started' : 'Today: ${formatDurationHms(today)}',
-                style: _sans(size: 10.5, color: Colors.white.withValues(alpha: 0.78)),
+                style: _sans(size: 11.5, color: Colors.white.withValues(alpha: 0.78)),
               ),
             ],
           ),
@@ -485,7 +463,7 @@ class _ClockCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(
                   formatDurationHms(elapsed),
-                  style: _display(size: 22, weight: FontWeight.w700).copyWith(
+                  style: _display(size: 34, weight: FontWeight.w700).copyWith(
                     fontFeatures: const [FontFeature.tabularFigures()],
                     letterSpacing: 0.6,
                   ),
@@ -497,12 +475,12 @@ class _ClockCard extends StatelessWidget {
           else
             Text(
               'Clock in to start your day',
-              style: _display(size: 14, weight: FontWeight.w600, height: 1.2),
+              style: _display(size: 18, weight: FontWeight.w600, height: 1.2),
             ),
           const SizedBox(height: 8),
           Text(
             onShift ? 'Current shift duration' : 'Only at an approved workplace',
-            style: _sans(size: 11, color: Colors.white.withValues(alpha: 0.72)),
+            style: _sans(size: 12, color: Colors.white.withValues(alpha: 0.72)),
           ),
           const SizedBox(height: 14),
           Row(
@@ -518,7 +496,7 @@ class _ClockCard extends StatelessWidget {
                   place,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: _sans(size: 11, weight: FontWeight.w500),
+                  style: _sans(size: 12.5, weight: FontWeight.w500),
                 ),
               ),
               if (!onShift) ...[
@@ -553,7 +531,7 @@ class _ClockCard extends StatelessWidget {
                       children: [
                         Text(
                           busy ? 'Saving...' : 'Clock Out',
-                          style: _display(size: 11, weight: FontWeight.w600),
+                          style: _display(size: 13, weight: FontWeight.w600),
                         ),
                         const SizedBox(width: 8),
                         const Icon(Icons.timer_outlined, size: 18),
@@ -561,7 +539,7 @@ class _ClockCard extends StatelessWidget {
                     )
                   : Text(
                       busy ? 'Checking location...' : 'Clock In',
-                      style: _display(size: 11, weight: FontWeight.w600),
+                      style: _display(size: 13, weight: FontWeight.w600),
                     ),
             ),
           ),
@@ -622,7 +600,7 @@ class _LeaveCard extends StatelessWidget {
               const _BadgeIcon(icon: Icons.beach_access_rounded, color: AppColors.green),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('Leave', style: _sans(size: 11.5, weight: FontWeight.w600)),
+                child: Text('Leave', style: _sans(size: 13, weight: FontWeight.w600)),
               ),
               const _Chevron(),
             ],
@@ -641,18 +619,18 @@ class _LeaveCard extends StatelessWidget {
                         children: [
                           TextSpan(
                             text: '$days',
-                            style: _display(size: 18, weight: FontWeight.w700),
+                            style: _display(size: 26, weight: FontWeight.w700),
                           ),
                           TextSpan(
                             text: ' days',
-                            style: _sans(size: 11, weight: FontWeight.w500),
+                            style: _sans(size: 13, weight: FontWeight.w500),
                           ),
                         ],
                       ),
                     ),
                     Text(
                       'available',
-                      style: _sans(size: 11, color: AppColors.muted),
+                      style: _sans(size: 12, color: AppColors.muted),
                     ),
                   ],
                 ),
@@ -714,7 +692,7 @@ class _AppraisalCard extends StatelessWidget {
                   'Appraisals',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: _sans(size: 11.5, weight: FontWeight.w600),
+                  style: _sans(size: 13, weight: FontWeight.w600),
                 ),
               ),
               const _Chevron(),
@@ -725,7 +703,7 @@ class _AppraisalCard extends StatelessWidget {
           Text(
             headline,
             style: _sans(
-              size: 12,
+              size: 14,
               weight: FontWeight.w600,
               color: AppColors.green,
             ),
@@ -768,7 +746,7 @@ class _NoticeCard extends StatelessWidget {
                   'Recent Notices',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: _sans(size: 11.5, weight: FontWeight.w600),
+                  style: _sans(size: 13, weight: FontWeight.w600),
                 ),
               ),
               const _Chevron(),
@@ -794,7 +772,7 @@ class _NoticeCard extends StatelessWidget {
                     notice!.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: _sans(size: 11.5, weight: FontWeight.w600, height: 1.25),
+                    style: _sans(size: 13, weight: FontWeight.w600, height: 1.25),
                   ),
                 ),
               ],
@@ -804,7 +782,7 @@ class _NoticeCard extends StatelessWidget {
               notice!.body,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: _sans(size: 10.5, color: AppColors.muted, height: 1.35),
+              style: _sans(size: 11.5, color: AppColors.muted, height: 1.35),
             ),
             const SizedBox(height: 10),
             Text(
@@ -839,7 +817,7 @@ class _ShiftCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text('Shifts', style: _sans(size: 11.5, weight: FontWeight.w600)),
+                child: Text('Shifts', style: _sans(size: 13, weight: FontWeight.w600)),
               ),
               const _Chevron(),
             ],
@@ -853,7 +831,7 @@ class _ShiftCard extends StatelessWidget {
             style: _sans(size: 12, color: AppColors.muted),
           ),
           const SizedBox(height: 2),
-          Text(time, style: _display(size: 16, weight: FontWeight.w700)),
+          Text(time, style: _display(size: 22, weight: FontWeight.w700)),
         ],
       ),
     );
@@ -891,7 +869,7 @@ class _WeekCard extends StatelessWidget {
                 child: Text(
                   'Weekly Shift Timeline',
                   maxLines: 2,
-                  style: _sans(size: 11.5, weight: FontWeight.w600, height: 1.2),
+                  style: _sans(size: 13, weight: FontWeight.w600, height: 1.2),
                 ),
               ),
               const _Chevron(),
@@ -1003,7 +981,7 @@ class _TeamCard extends StatelessWidget {
                 child: Text(
                   'Team Activity',
                   maxLines: 2,
-                  style: _sans(size: 11.5, weight: FontWeight.w600, height: 1.2),
+                  style: _sans(size: 13, weight: FontWeight.w600, height: 1.2),
                 ),
               ),
               const _Chevron(),
@@ -1013,7 +991,7 @@ class _TeamCard extends StatelessWidget {
           if (people.isEmpty)
             Text(
               'No team posts yet.',
-              style: _sans(size: 10.5, color: AppColors.muted, height: 1.35),
+              style: _sans(size: 11.5, color: AppColors.muted, height: 1.35),
             )
           else
             for (var i = 0; i < people.length; i++) ...[

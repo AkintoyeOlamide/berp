@@ -9,29 +9,14 @@ class ClockFenceResult {
     required this.ok,
     required this.message,
     this.site,
-    this.latitude,
-    this.longitude,
   });
 
   final bool ok;
   final String message;
   final ClockSite? site;
 
-  final double? latitude;
-  final double? longitude;
-
-  factory ClockFenceResult.allowed(
-    ClockSite site, {
-    double? latitude,
-    double? longitude,
-  }) {
-    return ClockFenceResult._(
-      ok: true,
-      message: site.name,
-      site: site,
-      latitude: latitude,
-      longitude: longitude,
-    );
+  factory ClockFenceResult.allowed(ClockSite site) {
+    return ClockFenceResult._(ok: true, message: site.name, site: site);
   }
 
   factory ClockFenceResult.blocked(String message) {
@@ -40,9 +25,8 @@ class ClockFenceResult {
 }
 
 class ClockFence {
-  static Future<ClockFenceResult> checkIn({List<ClockSite>? sites}) async {
-    final places = (sites == null || sites.isEmpty) ? clockSites : sites;
-    if (places.isEmpty) {
+  static Future<ClockFenceResult> checkIn() async {
+    if (clockSites.isEmpty) {
       return ClockFenceResult.blocked(
         'No clock-in sites are configured yet.',
       );
@@ -80,7 +64,7 @@ class ClockFence {
 
       ClockSite? nearest;
       var nearestMeters = double.infinity;
-      for (final site in places) {
+      for (final site in clockSites) {
         final meters = Geolocator.distanceBetween(
           position.latitude,
           position.longitude,
@@ -88,11 +72,7 @@ class ClockFence {
           site.longitude,
         );
         if (meters <= site.radiusMeters) {
-          return ClockFenceResult.allowed(
-            site,
-            latitude: position.latitude,
-            longitude: position.longitude,
-          );
+          return ClockFenceResult.allowed(site);
         }
         if (meters < nearestMeters) {
           nearestMeters = meters;
