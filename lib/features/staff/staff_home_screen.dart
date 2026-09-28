@@ -5,14 +5,17 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/data/berp_cloud.dart';
+import '../../core/data/clock_sites.dart';
 import '../../core/data/staff_store.dart';
 import '../../core/location/clock_fence.dart';
 import '../../core/notifications/push_inbox.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_bottom_nav.dart';
 import '../../core/widgets/premium_ui.dart';
 import 'appraisals_screen.dart';
 import 'leave_screen.dart';
 import 'profile_screen.dart';
+import 'schedule_screen.dart';
 import 'updates_screen.dart';
 
 class StaffHomeScreen extends StatefulWidget {
@@ -23,18 +26,13 @@ class StaffHomeScreen extends StatefulWidget {
 }
 
 class _StaffHomeScreenState extends State<StaffHomeScreen> {
-  static const _bg = Color(0xFF0A0A0A);
-  static const _card = Color(0xFF1A1A1A);
-  static const _muted = Color(0xFF8E8E93);
-  static const _blue = Color(0xFF3044C4);
-  static const _green = Color(0xFF75BD42);
-
-  ClockSession? _open;
-  Duration _todayClosed = Duration.zero;
+  List<ClockSession> _sessions = [];
   int _leaveDays = StaffStore.annualAllowance;
+  List<AppraisalRecord> _appraisals = [];
+  List<StaffUpdate> _updates = [];
+  String? _avatarUrl;
   Timer? _tick;
   bool _busy = false;
-  String? _avatarUrl;
 
   @override
   void initState() {
@@ -48,30 +46,51 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
     super.dispose();
   }
 
+  ClockSession? get _open {
+    for (final session in _sessions) {
+      if (session.isOpen) return session;
+    }
+    return null;
+  }
+
   Future<void> _load() async {
-    final open = await StaffStore.instance.openSession();
-    final today = await StaffStore.instance.hoursToday();
-    final leave = await StaffStore.instance.remainingAnnualDays();
-    String? avatar;
-    try {
-      avatar = (await BerpCloud.fetchProfile())?.avatarUrl;
-    } catch (_) {}
+    final results = await Future.wait<Object?>([
+      StaffStore.instance.sessions(),
+      StaffStore.instance.remainingAnnualDays(),
+      StaffStore.instance.appraisals(),
+      StaffStore.instance.updates(),
+      _avatar(),
+    ]);
     if (!mounted) return;
     setState(() {
-      _open = open;
-      final closed = today - (open?.elapsed ?? Duration.zero);
-      _todayClosed = closed.isNegative ? Duration.zero : closed;
-      _leaveDays = leave;
-      _avatarUrl = (avatar ?? '').isEmpty ? null : avatar;
+      _sessions = results[0]! as List<ClockSession>;
+      _leaveDays = results[1]! as int;
+      _appraisals = results[2]! as List<AppraisalRecord>;
+      _updates = results[3]! as List<StaffUpdate>;
+      _avatarUrl = results[4] as String?;
     });
-    _tick?.cancel();
-    if (open != null) {
-      _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (!mounted) return;
-        setState(() {});
-      });
-    }
+    _syncTicker();
     unawaited(PushInbox.sync());
+  }
+
+  Future<String?> _avatar() async {
+    try {
+      final url = (await BerpCloud.fetchProfile())?.avatarUrl ?? '';
+      return url.isEmpty ? null : url;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _syncTicker() {
+    if (_open == null) {
+      _tick?.cancel();
+      _tick = null;
+      return;
+    }
+    _tick ??= Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _toggleClock() async {
@@ -106,9 +125,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
   }
 
   void _toast(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _openPage(Widget page) async {
@@ -118,245 +135,196 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
   }
 
   String get _greeting {
-    final hour = DateTime.now().hour;
+    final hour = lagosWallClock(DateTime.now()).hour;
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
   }
 
-  TextStyle _panchang({
-    required double size,
-    FontWeight weight = FontWeight.w600,
-    Color color = Colors.white,
-    double height = 1.1,
-  }) {
-    return TextStyle(
-      fontFamily: 'Panchang',
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-      height: height,
-    );
-  }
-
-  TextStyle _body({
-    required double size,
-    FontWeight weight = FontWeight.w400,
-    Color color = Colors.white,
-    double height = 1.3,
-  }) {
-    return GoogleFonts.poppins(
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-      height: height,
-    );
+  String get _place {
+    final site = _open?.siteName?.trim();
+    if (site != null && site.isNotEmpty) return site;
+    if (clockSites.isEmpty) return 'Approved workplace';
+    return clockSites.first.name;
   }
 
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
+    final now = DateTime.now();
     final onShift = _open != null;
-    final elapsed = _open?.elapsed ?? Duration.zero;
-    final today = _todayClosed + elapsed;
+    final week = lagosWeekHours(_sessions, now);
+    final todayIndex = lagosWallClock(now).weekday - 1;
+    final today = week[todayIndex];
+    final due = _appraisals.where((item) => !item.completed).length;
+    final done = _appraisals.where((item) => item.completed).length;
+    final next = upcomingShift(now);
+    final notice = _updates.isEmpty ? null : _updates.first;
+    final freshNotice = _updates.any(
+      (item) => now.difference(item.at) < const Duration(hours: 24),
+    );
+    final leaveRatio = (_leaveDays / StaffStore.annualAllowance).clamp(0.0, 1.0);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
-        backgroundColor: _bg,
+        backgroundColor: AppColors.black,
         body: Stack(
           children: [
-            CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(20, top + 18, 20, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(_greeting, style: _body(size: 13, color: _muted)),
-                        const SizedBox(height: 6),
-                        GestureDetector(
-                          onTap: () => _openPage(const ProfileScreen()),
-                          child: Row(
+            RefreshIndicator(
+              color: AppColors.secondary,
+              backgroundColor: AppColors.surface,
+              onRefresh: _load,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(20, top + 12, 20, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              CircleAvatar(
-                                radius: 22,
-                                backgroundColor: _card,
-                                backgroundImage: _avatarUrl == null
-                                    ? null
-                                    : NetworkImage(_avatarUrl!),
-                                child: _avatarUrl == null
-                                    ? const Icon(
-                                        Icons.person_rounded,
-                                        color: _muted,
-                                      )
-                                    : null,
+                              GestureDetector(
+                                onTap: () => _openPage(const ProfileScreen()),
+                                child: CircleAvatar(
+                                  radius: 22,
+                                  backgroundColor: AppColors.surfaceHigh,
+                                  backgroundImage: _avatarUrl == null
+                                      ? null
+                                      : NetworkImage(_avatarUrl!),
+                                  child: _avatarUrl == null
+                                      ? const Icon(
+                                          Icons.person_rounded,
+                                          color: AppColors.muted,
+                                        )
+                                      : null,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  StaffIdentity.firstName,
-                                  style: _panchang(
-                                    size: 28,
-                                    weight: FontWeight.w700,
-                                  ),
+                                  '$_greeting, ${StaffIdentity.firstName} 👋',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: _sans(size: 13.5, weight: FontWeight.w500),
                                 ),
+                              ),
+                              _BellButton(
+                                showDot: freshNotice,
+                                onTap: () => _openPage(const UpdatesScreen()),
                               ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Staff portal  ·  ${formatDay(DateTime.now())}',
-                          style: _body(size: 12, color: _muted),
-                        ),
-                        const SizedBox(height: 22),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-                          decoration: BoxDecoration(
-                            color: _card,
-                            borderRadius: BorderRadius.circular(18),
+                          const SizedBox(height: 14),
+                          GestureDetector(
+                            onTap: () => _openPage(const ProfileScreen()),
+                            child: Text(
+                              StaffIdentity.firstName,
+                              style: _display(size: 32, weight: FontWeight.w700),
+                            ),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 10,
-                                    height: 10,
-                                    decoration: BoxDecoration(
-                                      color: onShift ? _green : _muted,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    onShift ? 'On shift' : 'Off shift',
-                                    style: _body(
-                                      size: 12,
-                                      weight: FontWeight.w500,
-                                      color: onShift ? _green : _muted,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  Text(
-                                    'Today ${formatDurationHms(today)}',
-                                    style: _body(size: 11.5, color: _muted),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-                              Text(
-                                onShift
-                                    ? formatDurationHms(elapsed)
-                                    : 'Clock in to start your day',
-                                style:
-                                    _panchang(
-                                      size: onShift ? 40 : 16,
-                                      weight: FontWeight.w700,
-                                    ).copyWith(
-                                      fontFeatures: const [
-                                        FontFeature.tabularFigures(),
-                                      ],
-                                      letterSpacing: onShift ? 1.2 : 0,
-                                    ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                onShift
-                                    ? _open!.siteName == null
-                                          ? 'Since ${formatClock(_open!.clockIn)}'
-                                          : 'At ${_open!.siteName}  ·  since ${formatClock(_open!.clockIn)}'
-                                    : 'Only at approved workplaces',
-                                style: _body(size: 12, color: _muted),
-                              ),
-                              const SizedBox(height: 18),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 48,
-                                child: FilledButton(
-                                  onPressed: _busy ? null : _toggleClock,
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: onShift
-                                        ? const Color(0xFFFF453A)
-                                        : _blue,
-                                    foregroundColor: Colors.white,
-                                    disabledBackgroundColor: _blue.withValues(
-                                      alpha: 0.4,
-                                    ),
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    _busy && !onShift
-                                        ? 'Checking location...'
-                                        : onShift
-                                        ? 'Clock out'
-                                        : 'Clock in',
-                                    style: _panchang(
-                                      size: 12,
-                                      weight: FontWeight.w600,
-                                    ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Staff Portal  •  ${formatLagosLongDay(now)}',
+                            style: _sans(size: 12, color: AppColors.muted),
+                          ),
+                          const SizedBox(height: 18),
+                          _ClockCard(
+                            onShift: onShift,
+                            busy: _busy,
+                            today: today,
+                            elapsed: _open?.elapsed ?? Duration.zero,
+                            started: _open == null ? null : formatClock(_open!.clockIn),
+                            place: _place,
+                            onPressed: _toggleClock,
+                          ),
+                          const SizedBox(height: 22),
+                          Text(
+                            'At a Glance',
+                            style: _sans(size: 16, weight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 168,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: _LeaveCard(
+                                    days: _leaveDays,
+                                    ratio: leaveRatio,
+                                    onTap: () => _openPage(const LeaveScreen()),
                                   ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _AppraisalCard(
+                                    due: due,
+                                    done: done,
+                                    total: _appraisals.length,
+                                    onTap: () =>
+                                        _openPage(const AppraisalsScreen()),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 22),
-                        Text('Your desk', style: _panchang(size: 13)),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _DeskTile(
-                                title: 'Leave',
-                                subtitle: '$_leaveDays days left',
-                                icon: Icons.beach_access_outlined,
-                                accent: _green,
-                                panchang: _panchang,
-                                body: _body,
-                                onTap: () => _openPage(const LeaveScreen()),
-                              ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            height: 176,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: _NoticeCard(
+                                    notice: notice,
+                                    onTap: () => _openPage(const UpdatesScreen()),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _ShiftCard(
+                                    when: next.when,
+                                    time: next.time,
+                                    onTap: () => _openPage(const ScheduleScreen()),
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _DeskTile(
-                                title: 'Appraisals',
-                                subtitle: 'Reviews & goals',
-                                icon: Icons.workspace_premium_outlined,
-                                accent: _blue,
-                                panchang: _panchang,
-                                body: _body,
-                                onTap: () =>
-                                    _openPage(const AppraisalsScreen()),
-                              ),
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            height: 214,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: _WeekCard(
+                                    hours: week,
+                                    todayIndex: todayIndex,
+                                    onTap: () => _openPage(const ScheduleScreen()),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  flex: 2,
+                                  child: _TeamCard(
+                                    updates: _updates,
+                                    onTap: () => _openPage(const UpdatesScreen()),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        _DeskTile(
-                          title: 'Updates',
-                          subtitle: 'Team posts & notices',
-                          icon: Icons.campaign_outlined,
-                          accent: const Color(0xFFFF9F0A),
-                          panchang: _panchang,
-                          body: _body,
-                          onTap: () => _openPage(const UpdatesScreen()),
-                          wide: true,
-                        ),
-                        const AppBottomNavSpacer(extra: 24),
-                      ],
+                          ),
+                          const AppBottomNavSpacer(extra: 16),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const Positioned(
               left: 0,
@@ -371,79 +339,807 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
   }
 }
 
-class _DeskTile extends StatelessWidget {
-  const _DeskTile({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.accent,
-    required this.panchang,
-    required this.body,
-    required this.onTap,
-    this.wide = false,
-  });
+class _BellButton extends StatelessWidget {
+  const _BellButton({required this.showDot, required this.onTap});
 
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color accent;
-  final TextStyle Function({
-    required double size,
-    FontWeight weight,
-    Color color,
-    double height,
-  })
-  panchang;
-  final TextStyle Function({
-    required double size,
-    FontWeight weight,
-    Color color,
-    double height,
-  })
-  body;
+  final bool showDot;
   final VoidCallback onTap;
-  final bool wide;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFF121212),
-      borderRadius: BorderRadius.circular(16),
+      color: AppColors.surface,
+      shape: const CircleBorder(),
       child: InkWell(
+        customBorder: const CircleBorder(),
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(14, 16, 14, wide ? 16 : 18),
-          child: Row(
+        child: SizedBox(
+          width: 42,
+          height: 42,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: accent, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: panchang(size: 13)),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: body(size: 11.5, color: const Color(0xFF8E8E93)),
+              const Icon(Icons.notifications_none_rounded, color: Colors.white),
+              if (showDot)
+                const Positioned(
+                  top: 10,
+                  right: 11,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.orange,
+                      shape: BoxShape.circle,
                     ),
-                  ],
+                    child: SizedBox(width: 7, height: 7),
+                  ),
                 ),
-              ),
-              const Icon(Icons.chevron_right_rounded, color: Color(0xFF8E8E93)),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _ClockCard extends StatelessWidget {
+  const _ClockCard({
+    required this.onShift,
+    required this.busy,
+    required this.today,
+    required this.elapsed,
+    required this.started,
+    required this.place,
+    required this.onPressed,
+  });
+
+  final bool onShift;
+  final bool busy;
+  final Duration today;
+  final Duration elapsed;
+  final String? started;
+  final String place;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF2A3CB8),
+            AppColors.brandBlue,
+            AppColors.brandBlueDeep,
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.brandBlue.withValues(alpha: 0.28),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: AppColors.green,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.green.withValues(alpha: 0.7),
+                      blurRadius: 6,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                onShift ? 'Active shift' : 'Off shift',
+                style: _sans(size: 12.5, weight: FontWeight.w500),
+              ),
+              const Spacer(),
+              Text(
+                onShift ? 'Started at $started' : 'Today: ${formatDurationHms(today)}',
+                style: _sans(size: 11.5, color: Colors.white.withValues(alpha: 0.78)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (onShift)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const _Waveform(),
+                const SizedBox(width: 10),
+                Text(
+                  formatDurationHms(elapsed),
+                  style: _display(size: 34, weight: FontWeight.w700).copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const _Waveform(flip: true),
+              ],
+            )
+          else
+            Text(
+              'Clock in to start your day',
+              style: _display(size: 18, weight: FontWeight.w600, height: 1.2),
+            ),
+          const SizedBox(height: 8),
+          Text(
+            onShift ? 'Current shift duration' : 'Only at an approved workplace',
+            style: _sans(size: 12, color: Colors.white.withValues(alpha: 0.72)),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Icon(
+                Icons.location_on_outlined,
+                size: 16,
+                color: Colors.white.withValues(alpha: 0.9),
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  place,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _sans(size: 12.5, weight: FontWeight.w500),
+                ),
+              ),
+              if (!onShift) ...[
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.check_circle_rounded,
+                  size: 15,
+                  color: AppColors.secondary,
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: FilledButton(
+              onPressed: busy ? null : onPressed,
+              style: FilledButton.styleFrom(
+                backgroundColor: onShift ? AppColors.orange : AppColors.secondary,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: (onShift ? AppColors.orange : AppColors.secondary)
+                    .withValues(alpha: 0.45),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: onShift
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          busy ? 'Saving...' : 'Clock Out',
+                          style: _display(size: 13, weight: FontWeight.w600),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.timer_outlined, size: 18),
+                      ],
+                    )
+                  : Text(
+                      busy ? 'Checking location...' : 'Clock In',
+                      style: _display(size: 13, weight: FontWeight.w600),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Waveform extends StatelessWidget {
+  const _Waveform({this.flip = false});
+
+  final bool flip;
+
+  @override
+  Widget build(BuildContext context) {
+    const bars = [7.0, 12.0, 18.0, 24.0, 16.0, 10.0];
+    final heights = flip ? bars.reversed.toList() : bars;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        for (final height in heights)
+          Container(
+            width: 3,
+            height: height,
+            margin: const EdgeInsets.symmetric(horizontal: 1.4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.88),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _LeaveCard extends StatelessWidget {
+  const _LeaveCard({
+    required this.days,
+    required this.ratio,
+    required this.onTap,
+  });
+
+  final int days;
+  final double ratio;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SurfaceCard(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const _BadgeIcon(icon: Icons.beach_access_rounded, color: AppColors.green),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Leave', style: _sans(size: 13, weight: FontWeight.w600)),
+              ),
+              const _Chevron(),
+            ],
+          ),
+          const Spacer(),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '$days',
+                            style: _display(size: 26, weight: FontWeight.w700),
+                          ),
+                          TextSpan(
+                            text: ' days',
+                            style: _sans(size: 13, weight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      'available',
+                      style: _sans(size: 12, color: AppColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 46,
+                height: 46,
+                child: CircularProgressIndicator(
+                  value: ratio,
+                  strokeWidth: 5,
+                  strokeCap: StrokeCap.round,
+                  backgroundColor: Colors.white.withValues(alpha: 0.08),
+                  color: AppColors.green,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AppraisalCard extends StatelessWidget {
+  const _AppraisalCard({
+    required this.due,
+    required this.done,
+    required this.total,
+    required this.onTap,
+  });
+
+  final int due;
+  final int done;
+  final int total;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = total == 0 ? 0.0 : done / total;
+    final headline = total == 0
+        ? 'None yet'
+        : due == 0
+        ? 'All complete'
+        : '$due review${due == 1 ? '' : 's'} due';
+    return _SurfaceCard(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const _BadgeIcon(
+                icon: Icons.track_changes_rounded,
+                color: AppColors.secondary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Appraisals',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _sans(size: 13, weight: FontWeight.w600),
+                ),
+              ),
+              const _Chevron(),
+            ],
+          ),
+          const Spacer(),
+          const SizedBox(height: 16),
+          Text(
+            headline,
+            style: _sans(
+              size: 14,
+              weight: FontWeight.w600,
+              color: AppColors.green,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text('Completed', style: _sans(size: 11, color: AppColors.muted)),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: Colors.white.withValues(alpha: 0.08),
+              color: AppColors.green,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NoticeCard extends StatelessWidget {
+  const _NoticeCard({required this.notice, required this.onTap});
+
+  final StaffUpdate? notice;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SurfaceCard(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Recent Notices',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _sans(size: 13, weight: FontWeight.w600),
+                ),
+              ),
+              const _Chevron(),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (notice == null)
+            Text(
+              'No notices yet.',
+              style: _sans(size: 12, color: AppColors.muted),
+            )
+          else ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _BadgeIcon(
+                  icon: Icons.campaign_rounded,
+                  color: AppColors.orange,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    notice!.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: _sans(size: 13, weight: FontWeight.w600, height: 1.25),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              notice!.body,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: _sans(size: 11.5, color: AppColors.muted, height: 1.35),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              formatTimeAgo(notice!.at),
+              style: _sans(size: 11, color: AppColors.mutedDark),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ShiftCard extends StatelessWidget {
+  const _ShiftCard({
+    required this.when,
+    required this.time,
+    required this.onTap,
+  });
+
+  final String when;
+  final String time;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SurfaceCard(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text('Shifts', style: _sans(size: 13, weight: FontWeight.w600)),
+              ),
+              const _Chevron(),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const _BadgeIcon(icon: Icons.schedule_rounded, color: AppColors.secondary),
+          const Spacer(),
+          const SizedBox(height: 12),
+          Text(
+            'Next: $when',
+            style: _sans(size: 12, color: AppColors.muted),
+          ),
+          const SizedBox(height: 2),
+          Text(time, style: _display(size: 22, weight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+}
+
+class _WeekCard extends StatelessWidget {
+  const _WeekCard({
+    required this.hours,
+    required this.todayIndex,
+    required this.onTap,
+  });
+
+  final List<Duration> hours;
+  final int todayIndex;
+  final VoidCallback onTap;
+
+  static const _letters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+  @override
+  Widget build(BuildContext context) {
+    var maxMinutes = 8 * 60;
+    for (final day in hours) {
+      if (day.inMinutes > maxMinutes) maxMinutes = day.inMinutes;
+    }
+    return _SurfaceCard(
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Weekly Shift Timeline',
+                  maxLines: 2,
+                  style: _sans(size: 13, weight: FontWeight.w600, height: 1.2),
+                ),
+              ),
+              const _Chevron(),
+            ],
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 118,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (var i = 0; i < 7; i++)
+                  Expanded(
+                    child: _WeekBar(
+                      letter: _letters[i],
+                      hours: hours[i],
+                      today: i == todayIndex,
+                      maxMinutes: maxMinutes,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WeekBar extends StatelessWidget {
+  const _WeekBar({
+    required this.letter,
+    required this.hours,
+    required this.today,
+    required this.maxMinutes,
+  });
+
+  final String letter;
+  final Duration hours;
+  final bool today;
+  final int maxMinutes;
+
+  @override
+  Widget build(BuildContext context) {
+    final fraction = maxMinutes == 0 ? 0.0 : hours.inMinutes / maxMinutes;
+    final barHeight = hours.inMinutes == 0 ? 6.0 : (10 + fraction * 62).clamp(10.0, 72.0);
+    final color = hours.inMinutes == 0
+        ? AppColors.surfaceHigh
+        : today || hours.inHours >= 8
+        ? AppColors.green
+        : AppColors.secondary;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Text(
+            formatHoursCompact(hours),
+            maxLines: 1,
+            style: _sans(
+              size: 8,
+              weight: FontWeight.w500,
+              color: today ? Colors.white : AppColors.muted,
+            ),
+          ),
+          const SizedBox(height: 4),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 280),
+            height: barHeight,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(5),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            letter,
+            style: _sans(
+              size: 10,
+              weight: today ? FontWeight.w600 : FontWeight.w500,
+              color: today ? Colors.white : AppColors.muted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TeamCard extends StatelessWidget {
+  const _TeamCard({required this.updates, required this.onTap});
+
+  final List<StaffUpdate> updates;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final people = updates.take(2).toList();
+    return _SurfaceCard(
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(12, 14, 10, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Team Activity',
+                  maxLines: 2,
+                  style: _sans(size: 13, weight: FontWeight.w600, height: 1.2),
+                ),
+              ),
+              const _Chevron(),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (people.isEmpty)
+            Text(
+              'No team posts yet.',
+              style: _sans(size: 11.5, color: AppColors.muted, height: 1.35),
+            )
+          else
+            for (var i = 0; i < people.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              _TeamRow(update: people[i]),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TeamRow extends StatelessWidget {
+  const _TeamRow({required this.update});
+
+  final StaffUpdate update;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = update.author.trim();
+    final first = name.split(RegExp(r'\s+')).first;
+    final initial = first.isEmpty ? '?' : first[0].toUpperCase();
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          radius: 13,
+          backgroundColor: AppColors.surfaceHigh,
+          child: Text(
+            initial,
+            style: _sans(size: 10, weight: FontWeight.w600, color: AppColors.secondary),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                first.isEmpty ? 'Team' : first,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _sans(size: 11.5, weight: FontWeight.w600),
+              ),
+              Text(
+                update.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _sans(size: 10, color: AppColors.muted),
+              ),
+              Text(
+                formatTimeAgo(update.at),
+                style: _sans(size: 9.5, color: AppColors.mutedDark),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SurfaceCard extends StatelessWidget {
+  const _SurfaceCard({
+    required this.child,
+    required this.onTap,
+    this.padding = const EdgeInsets.fromLTRB(14, 14, 12, 14),
+  });
+
+  final Widget child;
+  final VoidCallback onTap;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(18);
+    return Material(
+      color: AppColors.surface,
+      borderRadius: radius,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: radius,
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          ),
+          child: Padding(padding: padding, child: child),
+        ),
+      ),
+    );
+  }
+}
+
+class _BadgeIcon extends StatelessWidget {
+  const _BadgeIcon({required this.icon, required this.color});
+
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(icon, color: color, size: 16),
+    );
+  }
+}
+
+class _Chevron extends StatelessWidget {
+  const _Chevron();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Icon(Icons.chevron_right_rounded, color: AppColors.muted, size: 18);
+  }
+}
+
+TextStyle _display({
+  required double size,
+  FontWeight weight = FontWeight.w600,
+  Color color = Colors.white,
+  double height = 1.05,
+}) {
+  return TextStyle(
+    fontFamily: 'Panchang',
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    height: height,
+  );
+}
+
+TextStyle _sans({
+  required double size,
+  FontWeight weight = FontWeight.w400,
+  Color color = Colors.white,
+  double height = 1.25,
+}) {
+  return GoogleFonts.poppins(
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    height: height,
+  );
 }

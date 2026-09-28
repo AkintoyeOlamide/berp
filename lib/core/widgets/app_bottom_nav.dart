@@ -4,39 +4,55 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../features/settings/settings_screen.dart';
-import '../../features/staff/appraisals_screen.dart';
 import '../../features/staff/leave_screen.dart';
+import '../../features/staff/schedule_screen.dart';
 import '../../features/staff/updates_screen.dart';
+import '../theme/app_colors.dart';
 import 'premium_ui.dart';
-
-const _navBlue = Color(0xFF3044C4);
-const _navMuted = Color(0xFF8E8E93);
 
 /// Bottom navigation tab indices.
 abstract final class AppNavIndex {
   static const home = 0;
-  static const leave = 1;
-  static const updates = 2;
-  static const appraisals = 3;
+  static const schedule = 1;
+  static const leave = 2;
+  static const notices = 3;
   static const settings = 4;
+
+  static const updates = notices;
   static const book = leave;
-  static const portal = updates;
-  static const activities = appraisals;
+  static const portal = notices;
+  static const activities = notices;
+
+  /// Opened from the home card, not a tab.
+  static const appraisals = -1;
 }
 
 class AppNavDestination {
-  const AppNavDestination(this.icon, this.label);
+  const AppNavDestination(this.icon, this.activeIcon, this.label);
 
   final IconData icon;
+  final IconData activeIcon;
   final String label;
 }
 
 const appNavDestinations = <AppNavDestination>[
-  AppNavDestination(Icons.home_rounded, 'Home'),
-  AppNavDestination(Icons.beach_access_outlined, 'Leave'),
-  AppNavDestination(Icons.campaign_outlined, 'Updates'),
-  AppNavDestination(Icons.workspace_premium_outlined, 'Reviews'),
-  AppNavDestination(Icons.settings_outlined, 'Settings'),
+  AppNavDestination(Icons.home_outlined, Icons.home_rounded, 'Home'),
+  AppNavDestination(
+    Icons.calendar_month_outlined,
+    Icons.calendar_month_rounded,
+    'Schedule',
+  ),
+  AppNavDestination(Icons.edit_note_outlined, Icons.edit_note_rounded, 'Leave'),
+  AppNavDestination(
+    Icons.notifications_none_rounded,
+    Icons.notifications_rounded,
+    'Notices',
+  ),
+  AppNavDestination(
+    Icons.settings_outlined,
+    Icons.settings_rounded,
+    'Settings',
+  ),
 ];
 
 /// Shared minimize state so spacers / page padding can react.
@@ -59,9 +75,9 @@ void navigateAppTab(
   }
 
   final page = switch (target) {
+    AppNavIndex.schedule => const ScheduleScreen(),
     AppNavIndex.leave => const LeaveScreen(),
-    AppNavIndex.updates => const UpdatesScreen(),
-    AppNavIndex.appraisals => const AppraisalsScreen(),
+    AppNavIndex.notices => const UpdatesScreen(),
     AppNavIndex.settings => const SettingsScreen(),
     _ => throw ArgumentError('Unknown tab index: $target'),
   };
@@ -166,7 +182,7 @@ class _GlassShell extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: const Color(0xFF141414).withValues(alpha: 0.62),
+            color: AppColors.blackElevated.withValues(alpha: 0.82),
             borderRadius: BorderRadius.circular(radius),
             border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
             boxShadow: [
@@ -285,7 +301,7 @@ class _NavTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? _navBlue : _navMuted;
+    final color = selected ? AppColors.secondary : AppColors.muted;
 
     return Material(
       color: Colors.transparent,
@@ -297,7 +313,11 @@ class _NavTab extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(destination.icon, size: 22, color: color),
+              Icon(
+                selected ? destination.activeIcon : destination.icon,
+                size: 22,
+                color: color,
+              ),
               const SizedBox(height: 4),
               Text(
                 destination.label,

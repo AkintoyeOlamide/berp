@@ -422,16 +422,8 @@ class StaffStore {
   }
 
   Future<Duration> hoursToday() async {
-    final start = DateTime.now();
-    final day = DateTime(start.year, start.month, start.day);
-    var total = Duration.zero;
-    for (final session in await sessions()) {
-      final end = session.clockOut ?? DateTime.now();
-      if (end.isBefore(day)) continue;
-      final from = session.clockIn.isBefore(day) ? day : session.clockIn;
-      total += end.difference(from);
-    }
-    return total;
+    final now = DateTime.now();
+    return hoursOnLagosDay(await sessions(), lagosToday(now), now);
   }
 
   Future<ClockSession> clockIn({String? siteId, String? siteName}) async {
@@ -651,4 +643,133 @@ String formatDay(DateTime value) {
     'Dec',
   ];
   return '${value.day} ${months[value.month - 1]} ${value.year}';
+}
+
+const _weekdays = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
+const _shortMonths = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/// Lagos calendar date for [instant], stored as a UTC date-only value.
+DateTime lagosToday([DateTime? instant]) {
+  final wall = lagosWallClock(instant ?? DateTime.now());
+  return DateTime.utc(wall.year, wall.month, wall.day);
+}
+
+DateTime lagosWeekMonday([DateTime? instant]) {
+  final today = lagosToday(instant);
+  return today.subtract(Duration(days: today.weekday - 1));
+}
+
+/// Hours worked on a Lagos calendar day. Open sessions count up to [now].
+Duration hoursOnLagosDay(
+  List<ClockSession> sessions,
+  DateTime day, [
+  DateTime? now,
+]) {
+  final clock = now ?? DateTime.now();
+  final start = DateTime.utc(day.year, day.month, day.day).subtract(
+    const Duration(hours: 1),
+  );
+  final end = start.add(const Duration(days: 1));
+  var total = Duration.zero;
+  for (final session in sessions) {
+    final stop = session.clockOut ?? clock;
+    final from = session.clockIn.isBefore(start) ? start : session.clockIn;
+    final to = stop.isAfter(end) ? end : stop;
+    if (to.isAfter(from)) total += to.difference(from);
+  }
+  return total;
+}
+
+List<Duration> lagosWeekHours(List<ClockSession> sessions, [DateTime? now]) {
+  final clock = now ?? DateTime.now();
+  final monday = lagosWeekMonday(clock);
+  return [
+    for (var i = 0; i < 7; i++)
+      hoursOnLagosDay(sessions, monday.add(Duration(days: i)), clock),
+  ];
+}
+
+/// Office start is 09:00 Lagos, Monday to Friday.
+class ShiftCue {
+  const ShiftCue({required this.when, required this.time});
+
+  final String when;
+  final String time;
+}
+
+ShiftCue upcomingShift([DateTime? now]) {
+  final wall = lagosWallClock(now ?? DateTime.now());
+  var day = DateTime.utc(wall.year, wall.month, wall.day);
+  final beforeOpen = wall.hour < 9;
+  if (!(beforeOpen && day.weekday <= DateTime.friday)) {
+    do {
+      day = day.add(const Duration(days: 1));
+    } while (day.weekday > DateTime.friday);
+  }
+  final today = DateTime.utc(wall.year, wall.month, wall.day);
+  final diff = day.difference(today).inDays;
+  final when = switch (diff) {
+    0 => 'Today',
+    1 => 'Tomorrow',
+    _ => _weekdays[day.weekday - 1],
+  };
+  return ShiftCue(when: when, time: '9 AM');
+}
+
+String formatLagosLongDay(DateTime instant) {
+  final wall = lagosWallClock(instant);
+  return '${_weekdays[wall.weekday - 1]}, ${wall.day} ${_shortMonths[wall.month - 1]} ${wall.year}';
+}
+
+String weekdayName(DateTime day) => _weekdays[day.weekday - 1];
+
+String formatHoursCompact(Duration value) {
+  final minutes = value.inMinutes;
+  if (minutes <= 0) return '0h';
+  if (minutes < 60) return '${minutes}m';
+  final whole = minutes ~/ 60;
+  final tenths = (((minutes % 60) / 60) * 10).round();
+  if (tenths <= 0) return '${whole}h';
+  if (tenths >= 10) return '${whole + 1}h';
+  return '$whole.${tenths}h';
+}
+
+String formatTimeAgo(DateTime value) {
+  final delta = DateTime.now().difference(value);
+  if (delta.isNegative || delta.inSeconds < 45) return 'Just now';
+  if (delta.inMinutes < 60) {
+    final m = delta.inMinutes;
+    return m == 1 ? '1 minute ago' : '$m minutes ago';
+  }
+  if (delta.inHours < 24) {
+    final h = delta.inHours;
+    return h == 1 ? '1 hour ago' : '$h hours ago';
+  }
+  if (delta.inDays < 14) {
+    final d = delta.inDays;
+    return d == 1 ? '1 day ago' : '$d days ago';
+  }
+  return formatDay(value);
 }
