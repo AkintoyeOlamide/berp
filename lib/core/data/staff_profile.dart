@@ -8,6 +8,9 @@ class StaffProfile {
     this.designation = '',
     this.joinedYear,
     this.avatarUrl = '',
+    this.role = 'staff',
+    this.managerId,
+    this.suspended = false,
   });
 
   static const companies = ['VMO Aero', 'CHL', 'VMO Agro'];
@@ -20,6 +23,9 @@ class StaffProfile {
   final String designation;
   final int? joinedYear;
   final String avatarUrl;
+  final String role;
+  final String? managerId;
+  final bool suspended;
 
   bool get isComplete =>
       department.trim().isNotEmpty &&
@@ -35,6 +41,9 @@ class StaffProfile {
     String? designation,
     int? joinedYear,
     String? avatarUrl,
+    String? role,
+    String? managerId,
+    bool? suspended,
   }) {
     return StaffProfile(
       id: id,
@@ -45,6 +54,9 @@ class StaffProfile {
       designation: designation ?? this.designation,
       joinedYear: joinedYear ?? this.joinedYear,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      role: role ?? this.role,
+      managerId: managerId ?? this.managerId,
+      suspended: suspended ?? this.suspended,
     );
   }
 }

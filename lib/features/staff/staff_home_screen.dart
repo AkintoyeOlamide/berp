@@ -1,13 +1,17 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../core/auth/staff_access.dart';
 import '../../core/data/berp_cloud.dart';
+import '../../core/data/berp_org.dart';
 import '../../core/data/clock_sites.dart';
 import '../../core/data/staff_store.dart';
 import '../../core/location/clock_fence.dart';
+import '../../core/location/shift_location.dart';
 import '../../core/notifications/push_inbox.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_bottom_nav.dart';
@@ -71,6 +75,9 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
     });
     _syncTicker();
     unawaited(PushInbox.sync());
+    try {
+      StaffAccess.apply(await BerpCloud.fetchProfile());
+    } catch (_) {}
   }
 
   Future<String?> _avatar() async {
@@ -83,6 +90,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
   }
 
   void _syncTicker() {
+    ShiftLocationPing.follow(_open?.id);
     if (_open == null) {
       _tick?.cancel();
       _tick = null;
@@ -99,7 +107,8 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
     setState(() => _busy = true);
     try {
       if (_open == null) {
-        final check = await ClockFence.checkIn();
+        final sites = await BerpOrg.activeSites();
+        final check = await ClockFence.checkIn(sites: sites);
         if (!mounted) return;
         if (!check.ok || check.site == null) {
           setState(() => _busy = false);
@@ -109,9 +118,23 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
         await StaffStore.instance.clockIn(
           siteId: check.site!.id,
           siteName: check.site!.name,
+          latitude: check.latitude,
+          longitude: check.longitude,
         );
       } else {
-        await StaffStore.instance.clockOut();
+        double? latitude;
+        double? longitude;
+        try {
+          final sites = await BerpOrg.activeSites();
+          final check = await ClockFence.checkIn(sites: sites);
+          latitude = check.latitude;
+          longitude = check.longitude;
+        } catch (_) {}
+        await StaffStore.instance.clockOut(
+          latitude: latitude,
+          longitude: longitude,
+        );
+        ShiftLocationPing.stop();
       }
     } catch (error) {
       if (!mounted) return;
@@ -210,7 +233,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                                   '$_greeting, ${StaffIdentity.firstName} 👋',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: _sans(size: 13.5, weight: FontWeight.w500),
+                                  style: _sans(size: 12, weight: FontWeight.w500),
                                 ),
                               ),
                               _BellButton(
@@ -224,13 +247,13 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                             onTap: () => _openPage(const ProfileScreen()),
                             child: Text(
                               StaffIdentity.firstName,
-                              style: _display(size: 32, weight: FontWeight.w700),
+                              style: _display(size: 20, weight: FontWeight.w700),
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Staff Portal  •  ${formatLagosLongDay(now)}',
-                            style: _sans(size: 12, color: AppColors.muted),
+                            style: _sans(size: 11, color: AppColors.muted),
                           ),
                           const SizedBox(height: 18),
                           _ClockCard(
@@ -243,9 +266,76 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                             onPressed: _toggleClock,
                           ),
                           const SizedBox(height: 22),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'My stats',
+                                  style: _sans(
+                                    size: 13,
+                                    weight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(color: AppColors.hairline),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.calendar_today_outlined,
+                                      size: 12,
+                                      color: AppColors.muted,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Today',
+                                      style: _sans(
+                                        size: 11,
+                                        color: AppColors.muted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          _PersonalStatsCard(
+                            onShift: onShift,
+                            hoursToday: today,
+                            weekTotal: week.fold<Duration>(
+                              Duration.zero,
+                              (sum, item) => sum + item,
+                            ),
+                            leaveDays: _leaveDays,
+                            notices: _updates.length,
+                            clocksThisWeek: _sessions
+                                .where((session) {
+                                  final day = lagosToday(session.clockIn);
+                                  final monday = lagosWeekMonday(now);
+                                  return !day.isBefore(monday) &&
+                                      day.isBefore(
+                                        monday.add(const Duration(days: 7)),
+                                      );
+                                })
+                                .length,
+                            onHistory: () => _openPage(const ScheduleScreen()),
+                            onLeave: () => _openPage(const LeaveScreen()),
+                            onNotices: () => _openPage(const UpdatesScreen()),
+                          ),
+                          const SizedBox(height: 18),
                           Text(
                             'At a Glance',
-                            style: _sans(size: 16, weight: FontWeight.w600),
+                            style: _sans(size: 11.5, weight: FontWeight.w600),
                           ),
                           const SizedBox(height: 12),
                           SizedBox(
@@ -336,6 +426,256 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
         ),
       ),
     );
+  }
+}
+
+class _PersonalStatsCard extends StatelessWidget {
+  const _PersonalStatsCard({
+    required this.onShift,
+    required this.hoursToday,
+    required this.weekTotal,
+    required this.leaveDays,
+    required this.notices,
+    required this.clocksThisWeek,
+    required this.onHistory,
+    required this.onLeave,
+    required this.onNotices,
+  });
+
+  final bool onShift;
+  final Duration hoursToday;
+  final Duration weekTotal;
+  final int leaveDays;
+  final int notices;
+  final int clocksThisWeek;
+  final VoidCallback onHistory;
+  final VoidCallback onLeave;
+  final VoidCallback onNotices;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.hairline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Your presence',
+                      style: _sans(size: 14, weight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Your clock history, leave, and notices.',
+                      style: _sans(size: 11, color: AppColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (onShift ? AppColors.green : AppColors.orange)
+                      .withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  onShift ? 'On shift' : 'Off shift',
+                  style: _sans(
+                    size: 10,
+                    weight: FontWeight.w700,
+                    color: onShift ? AppColors.green : AppColors.orange,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              SizedBox(
+                width: 92,
+                height: 92,
+                child: CustomPaint(
+                  painter: _MiniRingPainter(
+                    progress: onShift ? 1 : (hoursToday.inMinutes / (8 * 60)).clamp(0.0, 1.0),
+                    color: onShift ? AppColors.green : AppColors.secondary,
+                    label: formatHoursCompact(hoursToday),
+                    sub: 'today',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  children: [
+                    _statLink(
+                      'Clock-ins this week',
+                      '$clocksThisWeek',
+                      onHistory,
+                    ),
+                    _statLink(
+                      'Hours this week',
+                      formatHoursCompact(weekTotal),
+                      onHistory,
+                    ),
+                    _statLink(
+                      'Leave remaining',
+                      '$leaveDays d',
+                      onLeave,
+                    ),
+                    _statLink(
+                      'Notices for you',
+                      '$notices',
+                      onNotices,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Material(
+            color: Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: onHistory,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.history_rounded,
+                      size: 18,
+                      color: AppColors.secondary,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'My attendance history',
+                        style: _sans(size: 13, weight: FontWeight.w500),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.muted,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statLink(String label, String value, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: _sans(size: 11.5, color: AppColors.muted),
+              ),
+            ),
+            Text(
+              value,
+              style: _sans(size: 12.5, weight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniRingPainter extends CustomPainter {
+  _MiniRingPainter({
+    required this.progress,
+    required this.color,
+    required this.label,
+    required this.sub,
+  });
+
+  final double progress;
+  final Color color;
+  final String label;
+  final String sub;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.shortestSide / 2;
+    final stroke = 8.0;
+    final rect = Rect.fromCircle(center: center, radius: radius - stroke / 2);
+    canvas.drawArc(
+      rect,
+      0,
+      math.pi * 2,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke
+        ..color = Colors.white.withValues(alpha: 0.08),
+    );
+    canvas.drawArc(
+      rect,
+      -math.pi / 2,
+      (progress.clamp(0.0, 1.0)) * math.pi * 2,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke
+        ..strokeCap = StrokeCap.round
+        ..color = color,
+    );
+    final text = TextPainter(
+      text: TextSpan(
+        children: [
+          TextSpan(
+            text: '$label\n',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              height: 1.1,
+            ),
+          ),
+          TextSpan(
+            text: sub,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.55),
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    text.paint(canvas, center - Offset(text.width / 2, text.height / 2));
+  }
+
+  @override
+  bool shouldRepaint(covariant _MiniRingPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.label != label;
   }
 }
 
@@ -445,12 +785,12 @@ class _ClockCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 onShift ? 'Active shift' : 'Off shift',
-                style: _sans(size: 12.5, weight: FontWeight.w500),
+                style: _sans(size: 11, weight: FontWeight.w500),
               ),
               const Spacer(),
               Text(
                 onShift ? 'Started at $started' : 'Today: ${formatDurationHms(today)}',
-                style: _sans(size: 11.5, color: Colors.white.withValues(alpha: 0.78)),
+                style: _sans(size: 10.5, color: Colors.white.withValues(alpha: 0.78)),
               ),
             ],
           ),
@@ -463,7 +803,7 @@ class _ClockCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(
                   formatDurationHms(elapsed),
-                  style: _display(size: 34, weight: FontWeight.w700).copyWith(
+                  style: _display(size: 22, weight: FontWeight.w700).copyWith(
                     fontFeatures: const [FontFeature.tabularFigures()],
                     letterSpacing: 0.6,
                   ),
@@ -475,12 +815,12 @@ class _ClockCard extends StatelessWidget {
           else
             Text(
               'Clock in to start your day',
-              style: _display(size: 18, weight: FontWeight.w600, height: 1.2),
+              style: _display(size: 14, weight: FontWeight.w600, height: 1.2),
             ),
           const SizedBox(height: 8),
           Text(
             onShift ? 'Current shift duration' : 'Only at an approved workplace',
-            style: _sans(size: 12, color: Colors.white.withValues(alpha: 0.72)),
+            style: _sans(size: 11, color: Colors.white.withValues(alpha: 0.72)),
           ),
           const SizedBox(height: 14),
           Row(
@@ -496,7 +836,7 @@ class _ClockCard extends StatelessWidget {
                   place,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: _sans(size: 12.5, weight: FontWeight.w500),
+                  style: _sans(size: 11, weight: FontWeight.w500),
                 ),
               ),
               if (!onShift) ...[
@@ -531,7 +871,7 @@ class _ClockCard extends StatelessWidget {
                       children: [
                         Text(
                           busy ? 'Saving...' : 'Clock Out',
-                          style: _display(size: 13, weight: FontWeight.w600),
+                          style: _display(size: 11, weight: FontWeight.w600),
                         ),
                         const SizedBox(width: 8),
                         const Icon(Icons.timer_outlined, size: 18),
@@ -539,7 +879,7 @@ class _ClockCard extends StatelessWidget {
                     )
                   : Text(
                       busy ? 'Checking location...' : 'Clock In',
-                      style: _display(size: 13, weight: FontWeight.w600),
+                      style: _display(size: 11, weight: FontWeight.w600),
                     ),
             ),
           ),
@@ -600,7 +940,7 @@ class _LeaveCard extends StatelessWidget {
               const _BadgeIcon(icon: Icons.beach_access_rounded, color: AppColors.green),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('Leave', style: _sans(size: 13, weight: FontWeight.w600)),
+                child: Text('Leave', style: _sans(size: 11.5, weight: FontWeight.w600)),
               ),
               const _Chevron(),
             ],
@@ -619,18 +959,18 @@ class _LeaveCard extends StatelessWidget {
                         children: [
                           TextSpan(
                             text: '$days',
-                            style: _display(size: 26, weight: FontWeight.w700),
+                            style: _display(size: 18, weight: FontWeight.w700),
                           ),
                           TextSpan(
                             text: ' days',
-                            style: _sans(size: 13, weight: FontWeight.w500),
+                            style: _sans(size: 11, weight: FontWeight.w500),
                           ),
                         ],
                       ),
                     ),
                     Text(
                       'available',
-                      style: _sans(size: 12, color: AppColors.muted),
+                      style: _sans(size: 11, color: AppColors.muted),
                     ),
                   ],
                 ),
@@ -692,7 +1032,7 @@ class _AppraisalCard extends StatelessWidget {
                   'Appraisals',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: _sans(size: 13, weight: FontWeight.w600),
+                  style: _sans(size: 11.5, weight: FontWeight.w600),
                 ),
               ),
               const _Chevron(),
@@ -703,7 +1043,7 @@ class _AppraisalCard extends StatelessWidget {
           Text(
             headline,
             style: _sans(
-              size: 14,
+              size: 12,
               weight: FontWeight.w600,
               color: AppColors.green,
             ),
@@ -746,7 +1086,7 @@ class _NoticeCard extends StatelessWidget {
                   'Recent Notices',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: _sans(size: 13, weight: FontWeight.w600),
+                  style: _sans(size: 11.5, weight: FontWeight.w600),
                 ),
               ),
               const _Chevron(),
@@ -772,7 +1112,7 @@ class _NoticeCard extends StatelessWidget {
                     notice!.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: _sans(size: 13, weight: FontWeight.w600, height: 1.25),
+                    style: _sans(size: 11.5, weight: FontWeight.w600, height: 1.25),
                   ),
                 ),
               ],
@@ -782,7 +1122,7 @@ class _NoticeCard extends StatelessWidget {
               notice!.body,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: _sans(size: 11.5, color: AppColors.muted, height: 1.35),
+              style: _sans(size: 10.5, color: AppColors.muted, height: 1.35),
             ),
             const SizedBox(height: 10),
             Text(
@@ -817,7 +1157,7 @@ class _ShiftCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text('Shifts', style: _sans(size: 13, weight: FontWeight.w600)),
+                child: Text('Shifts', style: _sans(size: 11.5, weight: FontWeight.w600)),
               ),
               const _Chevron(),
             ],
@@ -831,7 +1171,7 @@ class _ShiftCard extends StatelessWidget {
             style: _sans(size: 12, color: AppColors.muted),
           ),
           const SizedBox(height: 2),
-          Text(time, style: _display(size: 22, weight: FontWeight.w700)),
+          Text(time, style: _display(size: 16, weight: FontWeight.w700)),
         ],
       ),
     );
@@ -869,7 +1209,7 @@ class _WeekCard extends StatelessWidget {
                 child: Text(
                   'Weekly Shift Timeline',
                   maxLines: 2,
-                  style: _sans(size: 13, weight: FontWeight.w600, height: 1.2),
+                  style: _sans(size: 11.5, weight: FontWeight.w600, height: 1.2),
                 ),
               ),
               const _Chevron(),
@@ -981,7 +1321,7 @@ class _TeamCard extends StatelessWidget {
                 child: Text(
                   'Team Activity',
                   maxLines: 2,
-                  style: _sans(size: 13, weight: FontWeight.w600, height: 1.2),
+                  style: _sans(size: 11.5, weight: FontWeight.w600, height: 1.2),
                 ),
               ),
               const _Chevron(),
@@ -991,7 +1331,7 @@ class _TeamCard extends StatelessWidget {
           if (people.isEmpty)
             Text(
               'No team posts yet.',
-              style: _sans(size: 11.5, color: AppColors.muted, height: 1.35),
+              style: _sans(size: 10.5, color: AppColors.muted, height: 1.35),
             )
           else
             for (var i = 0; i < people.length; i++) ...[
