@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../auth/auth_service.dart';
+import '../auth/staff_access.dart';
 import '../data/berp_cloud.dart';
 import '../data/device_fingerprint.dart';
 import 'clock_reminders.dart';
@@ -60,6 +61,10 @@ abstract final class PushInbox {
     final prefs = await SharedPreferences.getInstance();
 
     for (final message in messages) {
+      if (message.audience == 'admins' &&
+          !StaffAccess.role.value.isOrgAdmin) {
+        continue;
+      }
       final at = message.scheduledAt;
       if (at == null) continue;
       final when = tz.TZDateTime.from(at.toUtc(), lagos);
@@ -135,6 +140,7 @@ class BerpPushMessage {
     required this.status,
     this.scheduledAt,
     this.recurLabel,
+    this.audience = 'all',
   });
 
   final String id;
@@ -144,6 +150,7 @@ class BerpPushMessage {
   final String status;
   final DateTime? scheduledAt;
   final String? recurLabel;
+  final String audience;
 
   factory BerpPushMessage.fromJson(Map<String, dynamic> json) {
     return BerpPushMessage(
@@ -154,6 +161,9 @@ class BerpPushMessage {
       status: '${json['status'] ?? 'scheduled'}',
       scheduledAt: DateTime.tryParse('${json['scheduled_at'] ?? ''}'),
       recurLabel: _emptyToNull(json['recur_label']),
+      audience: '${json['audience'] ?? 'all'}'.isEmpty
+          ? 'all'
+          : '${json['audience']}',
     );
   }
 

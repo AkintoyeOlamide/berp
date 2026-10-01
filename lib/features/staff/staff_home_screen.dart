@@ -20,6 +20,7 @@ import 'appraisals_screen.dart';
 import 'leave_screen.dart';
 import 'profile_screen.dart';
 import 'schedule_screen.dart';
+import 'tickets_screen.dart';
 import 'updates_screen.dart';
 
 class StaffHomeScreen extends StatefulWidget {
@@ -382,6 +383,68 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                                   ),
                                 ),
                               ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Material(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(18),
+                            child: InkWell(
+                              onTap: () => _openPage(const TicketsScreen()),
+                              borderRadius: BorderRadius.circular(18),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(color: AppColors.hairline),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.brandBlue
+                                            .withValues(alpha: 0.14),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Icon(
+                                        Icons.confirmation_number_outlined,
+                                        color: AppColors.brandBlue,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Tickets',
+                                            style: _sans(
+                                              size: 14,
+                                              weight: FontWeight.w700,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Report IT or facility issues',
+                                            style: _sans(
+                                              size: 11.5,
+                                              color: AppColors.muted,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.chevron_right_rounded,
+                                      color: AppColors.muted,
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 10),

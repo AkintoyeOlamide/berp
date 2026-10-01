@@ -7,6 +7,7 @@ import '../settings/settings_screen.dart';
 import '../staff/appraisals_screen.dart';
 import '../staff/leave_screen.dart';
 import '../staff/profile_screen.dart';
+import '../staff/tickets_screen.dart';
 import '../staff/updates_screen.dart';
 import 'locations_screen.dart';
 import 'notifications_screen.dart';
@@ -28,6 +29,7 @@ class AdminMoreScreen extends StatelessWidget {
           _link(context, 'Leave', const LeaveScreen()),
           _link(context, 'Appraisals', const AppraisalsScreen()),
           _link(context, 'Locations', const LocationsScreen()),
+          _link(context, 'Tickets', const TicketsScreen()),
           _link(context, 'Feed', const UpdatesScreen()),
           _link(context, 'History', const AttendanceHistoryScreen()),
           _link(context, 'Notifications', const NotificationsScreen()),

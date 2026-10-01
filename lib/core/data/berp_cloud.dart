@@ -370,6 +370,7 @@ abstract final class BerpCloud {
     required String title,
     required String body,
     DateTime? scheduledAt,
+    String audience = 'all',
   }) async {
     final db = _client;
     final uid = userId;
@@ -384,8 +385,159 @@ abstract final class BerpCloud {
         'scheduled_at': when.toIso8601String(),
         'status': 'scheduled',
         'created_by': uid,
+        'audience': audience,
       });
-    } catch (_) {}
+    } catch (_) {
+      try {
+        await db.from('berp_push_messages').insert({
+          'app_id': appId,
+          'kind': 'admin',
+          'title': title,
+          'body': body,
+          'scheduled_at': when.toIso8601String(),
+          'status': 'scheduled',
+          'created_by': uid,
+        });
+      } catch (_) {}
+    }
+  }
+
+  static Future<List<SupportTicket>> tickets({bool mineOnly = false}) async {
+    final db = _client;
+    final uid = userId;
+    if (db == null) return [];
+    try {
+      var query = db.from('support_tickets').select().eq('app_id', appId);
+      if (mineOnly && uid != null) {
+        query = query.eq('reporter_id', uid);
+      }
+      final res = await query.order('created_at', ascending: false).limit(200);
+      return [
+        for (final row in res as List<dynamic>)
+          if (row is Map) _ticketFromRow(Map<String, dynamic>.from(row)),
+      ];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<SupportTicket?> createTicket({
+    required TicketCategory category,
+    required String title,
+    required String description,
+    required String locationLabel,
+    List<Uint8List> images = const [],
+  }) async {
+    final db = _client;
+    final uid = userId;
+    if (db == null || uid == null) return null;
+    final urls = <String>[];
+    for (var i = 0; i < images.length && i < 3; i++) {
+      final url = await uploadTicketImage(images[i], index: i);
+      if (url.isNotEmpty) urls.add(url);
+    }
+    final profile = await fetchProfile();
+    final res = await db
+        .from('support_tickets')
+        .insert({
+          'app_id': appId,
+          'reporter_id': uid,
+          'reporter_name':
+              profile?.fullName.trim().isNotEmpty == true
+                  ? profile!.fullName.trim()
+                  : StaffIdentity.name,
+          'reporter_email':
+              (profile?.email ?? AuthService.currentUser?.email ?? '').trim(),
+          'category': category.storageValue,
+          'title': title.trim(),
+          'description': description.trim(),
+          'location_label': locationLabel.trim(),
+          'image_urls': urls,
+          'status': TicketStatus.pending.storageValue,
+        })
+        .select()
+        .single();
+    return _ticketFromRow(Map<String, dynamic>.from(res as Map));
+  }
+
+  static Future<String> uploadTicketImage(
+    Uint8List bytes, {
+    int index = 0,
+  }) async {
+    final db = _client;
+    final uid = userId;
+    if (db == null || uid == null) return '';
+    try {
+      final path =
+          '$uid/tickets/${DateTime.now().millisecondsSinceEpoch}-$index.jpg';
+      await db.storage.from('berp-avatars').uploadBinary(
+        path,
+        bytes,
+        fileOptions: const FileOptions(contentType: 'image/jpeg'),
+      );
+      return db.storage.from('berp-avatars').getPublicUrl(path);
+    } catch (_) {
+      return '';
+    }
+  }
+
+  static Future<SupportTicket?> updateTicketStatus({
+    required String id,
+    required TicketStatus status,
+    String? adminNote,
+  }) async {
+    final db = _client;
+    final uid = userId;
+    if (db == null || uid == null || id.isEmpty) return null;
+    final payload = <String, dynamic>{
+      'status': status.storageValue,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+      'assigned_to': uid,
+      if (adminNote != null) 'admin_note': adminNote.trim(),
+    };
+    try {
+      final res = await db
+          .from('support_tickets')
+          .update(payload)
+          .eq('id', id)
+          .eq('app_id', appId)
+          .select()
+          .single();
+      return _ticketFromRow(Map<String, dynamic>.from(res as Map));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static SupportTicket _ticketFromRow(Map<String, dynamic> row) {
+    final rawImages = row['image_urls'];
+    final images = <String>[];
+    if (rawImages is List) {
+      for (final item in rawImages) {
+        final text = '$item'.trim();
+        if (text.isNotEmpty) images.add(text);
+      }
+    }
+    return SupportTicket(
+      id: '${row['id']}',
+      reporterId: '${row['reporter_id'] ?? ''}',
+      reporterName: '${row['reporter_name'] ?? ''}',
+      reporterEmail: '${row['reporter_email'] ?? ''}',
+      category: TicketCategoryX.parse('${row['category']}'),
+      title: '${row['title'] ?? ''}',
+      description: '${row['description'] ?? ''}',
+      locationLabel: '${row['location_label'] ?? ''}',
+      imageUrls: images,
+      status: TicketStatusX.parse('${row['status']}'),
+      adminNote: '${row['admin_note'] ?? ''}',
+      assignedTo: '${row['assigned_to'] ?? ''}'.isEmpty
+          ? null
+          : '${row['assigned_to']}',
+      createdAt:
+          DateTime.tryParse('${row['created_at']}')?.toLocal() ??
+          DateTime.now(),
+      updatedAt: DateTime.tryParse('${row['updated_at']}')?.toLocal(),
+    );
   }
 
   static Future<void> setUpdateReaction({

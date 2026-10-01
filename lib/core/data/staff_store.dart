@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -365,6 +366,85 @@ class FeedStats {
   final int thisWeek;
 }
 
+enum TicketCategory { it, facility }
+
+extension TicketCategoryX on TicketCategory {
+  String get storageValue => switch (this) {
+    TicketCategory.it => 'it',
+    TicketCategory.facility => 'facility',
+  };
+
+  String get label => switch (this) {
+    TicketCategory.it => 'IT',
+    TicketCategory.facility => 'Facility',
+  };
+
+  static TicketCategory parse(String? raw) {
+    return switch ((raw ?? '').trim().toLowerCase()) {
+      'facility' => TicketCategory.facility,
+      _ => TicketCategory.it,
+    };
+  }
+}
+
+enum TicketStatus { pending, inProgress, done }
+
+extension TicketStatusX on TicketStatus {
+  String get storageValue => switch (this) {
+    TicketStatus.pending => 'pending',
+    TicketStatus.inProgress => 'in_progress',
+    TicketStatus.done => 'done',
+  };
+
+  String get label => switch (this) {
+    TicketStatus.pending => 'Pending',
+    TicketStatus.inProgress => 'In progress',
+    TicketStatus.done => 'Done',
+  };
+
+  static TicketStatus parse(String? raw) {
+    return switch ((raw ?? '').trim().toLowerCase()) {
+      'in_progress' => TicketStatus.inProgress,
+      'done' => TicketStatus.done,
+      _ => TicketStatus.pending,
+    };
+  }
+}
+
+class SupportTicket {
+  const SupportTicket({
+    required this.id,
+    required this.reporterId,
+    required this.reporterName,
+    required this.reporterEmail,
+    required this.category,
+    required this.title,
+    required this.description,
+    required this.locationLabel,
+    required this.imageUrls,
+    required this.status,
+    required this.createdAt,
+    this.adminNote = '',
+    this.assignedTo,
+    this.updatedAt,
+  });
+
+  final String id;
+  final String reporterId;
+  final String reporterName;
+  final String reporterEmail;
+  final TicketCategory category;
+  final String title;
+  final String description;
+  final String locationLabel;
+  final List<String> imageUrls;
+  final TicketStatus status;
+  final String adminNote;
+  final String? assignedTo;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+}
+
 abstract final class StaffIdentity {
   static String get name {
     final user = AuthService.currentUser;
@@ -670,6 +750,38 @@ class StaffStore {
   }
 
   Future<FeedStats> feedStats() => BerpCloud.feedStats();
+
+  Future<List<SupportTicket>> tickets({bool mineOnly = false}) {
+    return BerpCloud.tickets(mineOnly: mineOnly);
+  }
+
+  Future<SupportTicket?> createTicket({
+    required TicketCategory category,
+    required String title,
+    required String description,
+    required String locationLabel,
+    List<Uint8List> images = const [],
+  }) {
+    return BerpCloud.createTicket(
+      category: category,
+      title: title,
+      description: description,
+      locationLabel: locationLabel,
+      images: images,
+    );
+  }
+
+  Future<SupportTicket?> updateTicketStatus({
+    required String id,
+    required TicketStatus status,
+    String? adminNote,
+  }) {
+    return BerpCloud.updateTicketStatus(
+      id: id,
+      status: status,
+      adminNote: adminNote,
+    );
+  }
 
   List<T> _decode<T>(String? raw, T Function(Map<String, dynamic>) parse) {
     if (raw == null || raw.isEmpty) return [];

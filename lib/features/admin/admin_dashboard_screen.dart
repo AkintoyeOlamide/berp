@@ -16,6 +16,7 @@ import '../../core/widgets/pattern_page.dart';
 import '../../core/widgets/premium_ui.dart';
 import '../settings/settings_screen.dart';
 import '../staff/leave_screen.dart';
+import '../staff/tickets_screen.dart';
 import '../staff/updates_screen.dart';
 import 'attendance_history_screen.dart';
 import 'live_attendance_screen.dart';
@@ -38,6 +39,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   );
   List<LiveShift> _live = [];
   List<TeamLeave> _pendingLeave = [];
+  List<SupportTicket> _openTickets = [];
   List<int> _weekCounts = List<int>.filled(7, 0);
   ClockSession? _open;
   bool _busy = false;
@@ -68,6 +70,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       StaffStore.instance.sessions(),
       BerpOrg.notifications(),
       BerpOrg.weekClockInCounts(),
+      StaffStore.instance.tickets(),
     ]);
     if (!mounted) return;
     final sessions = results[3] as List<ClockSession>;
@@ -80,11 +83,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
     ShiftLocationPing.follow(open?.id);
     final leave = results[2] as List<TeamLeave>;
+    final tickets = results[6] as List<SupportTicket>;
     setState(() {
       _summary = results[0] as AttendanceSummary;
       _live = results[1] as List<LiveShift>;
       _pendingLeave = leave
           .where((item) => item.request.status == LeaveStatus.pending)
+          .take(5)
+          .toList();
+      _openTickets = tickets
+          .where((item) => item.status != TicketStatus.done)
           .take(5)
           .toList();
       _open = open;
@@ -279,6 +287,43 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   onOpen: _openPage,
                 ),
                 const SizedBox(height: 22),
+                Row(
+                  children: [
+                    Expanded(
+                      child: PatternSectionLabel(
+                        'Open tickets  ·  ${_openTickets.length}',
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => _openPage(const TicketsScreen()),
+                      child: Text(
+                        'View all',
+                        style: PatternPage.body(
+                          size: 12,
+                          color: PatternPage.blue,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (_openTickets.isEmpty)
+                  Text(
+                    'No open IT or facility tickets.',
+                    style: PatternPage.body(
+                      size: 13,
+                      color: PatternPage.muted,
+                    ),
+                  )
+                else
+                  for (final ticket in _openTickets) ...[
+                    _TicketDashTile(
+                      ticket: ticket,
+                      onTap: () => _openPage(const TicketsScreen()),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                const SizedBox(height: 14),
                 Row(
                   children: [
                     Expanded(
@@ -1155,6 +1200,7 @@ class _QuickActions extends StatelessWidget {
       ('Leave', Icons.edit_note_rounded, const LeaveScreen()),
       ('Locations', Icons.place_outlined, const LocationsScreen()),
       ('Feed', Icons.dynamic_feed_outlined, const UpdatesScreen()),
+      ('Tickets', Icons.confirmation_number_outlined, const TicketsScreen()),
       ('Alerts', Icons.notifications_outlined, const NotificationsScreen()),
       if (superAdmin)
         ('Settings', Icons.settings_outlined, const SettingsScreen()),
@@ -1193,6 +1239,90 @@ class _QuickActions extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _TicketDashTile extends StatelessWidget {
+  const _TicketDashTile({required this.ticket, required this.onTap});
+
+  final SupportTicket ticket;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = switch (ticket.status) {
+      TicketStatus.pending => const Color(0xFFF97316),
+      TicketStatus.inProgress => const Color(0xFF3B82F6),
+      TicketStatus.done => const Color(0xFF22C55E),
+    };
+    return Material(
+      color: PatternPage.row,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: PatternPage.blue.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  ticket.category == TicketCategory.it
+                      ? Icons.computer_rounded
+                      : Icons.apartment_rounded,
+                  color: PatternPage.blue,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ticket.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: PatternPage.body(
+                        size: 13,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      [
+                        ticket.category.label,
+                        if (ticket.reporterName.isNotEmpty) ticket.reporterName,
+                        ticket.status.label,
+                      ].join('  ·  '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: PatternPage.body(
+                        size: 11,
+                        color: PatternPage.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
