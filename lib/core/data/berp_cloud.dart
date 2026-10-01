@@ -253,21 +253,92 @@ abstract final class BerpCloud {
   static Future<List<StaffUpdate>> updates() async {
     final db = _client;
     if (db == null) return [];
+    final uid = userId;
     final res = await db
         .from('staff_updates')
         .select()
         .eq('app_id', appId)
         .order('created_at', ascending: false)
         .limit(80);
-    return [
+    final rows = [
       for (final row in res as List<dynamic>)
-        if (row is Map<String, dynamic>) _updateFromRow(row),
+        if (row is Map) Map<String, dynamic>.from(row),
     ];
+    if (rows.isEmpty) return [];
+
+    final ids = [for (final row in rows) '${row['id']}'];
+    final reactionCounts = <String, Map<String, int>>{};
+    final myReactions = <String, String>{};
+    final commentsByUpdate = <String, List<StaffUpdateComment>>{};
+
+    try {
+      final reactionRes = await db
+          .from('staff_update_reactions')
+          .select()
+          .eq('app_id', appId)
+          .inFilter('update_id', ids);
+      for (final row in reactionRes as List<dynamic>) {
+        if (row is! Map) continue;
+        final updateId = '${row['update_id']}';
+        final reaction = '${row['reaction'] ?? 'like'}';
+        final bucket = reactionCounts.putIfAbsent(updateId, () => {});
+        bucket[reaction] = (bucket[reaction] ?? 0) + 1;
+        if (uid != null && '${row['user_id']}' == uid) {
+          myReactions[updateId] = reaction;
+        }
+      }
+    } catch (_) {}
+
+    try {
+      final commentRes = await db
+          .from('staff_update_comments')
+          .select()
+          .eq('app_id', appId)
+          .inFilter('update_id', ids)
+          .order('created_at', ascending: true);
+      for (final row in commentRes as List<dynamic>) {
+        if (row is! Map) continue;
+        final comment = _commentFromRow(Map<String, dynamic>.from(row));
+        commentsByUpdate
+            .putIfAbsent(comment.updateId, () => [])
+            .add(comment);
+      }
+    } catch (_) {}
+
+    return [
+      for (final row in rows)
+        _updateFromRow(
+          row,
+          reactions: reactionCounts['${row['id']}'] ?? const {},
+          myReaction: myReactions['${row['id']}'],
+          comments: commentsByUpdate['${row['id']}'] ?? const [],
+        ),
+    ];
+  }
+
+  static Future<FeedStats> feedStats() async {
+    final items = await updates();
+    final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+    var reactions = 0;
+    var comments = 0;
+    var thisWeek = 0;
+    for (final item in items) {
+      reactions += item.reactionTotal;
+      comments += item.commentCount;
+      if (item.at.isAfter(weekAgo)) thisWeek += 1;
+    }
+    return FeedStats(
+      posts: items.length,
+      reactions: reactions,
+      comments: comments,
+      thisWeek: thisWeek,
+    );
   }
 
   static Future<StaffUpdate?> insertUpdate({
     required String title,
     required String body,
+    bool sendPush = false,
   }) async {
     final db = _client;
     final uid = userId;
@@ -284,7 +355,100 @@ abstract final class BerpCloud {
         })
         .select()
         .single();
-    return _updateFromRow(Map<String, dynamic>.from(res as Map));
+    final update = _updateFromRow(Map<String, dynamic>.from(res as Map));
+    if (sendPush) {
+      await scheduleAdminPush(
+        title: title,
+        body: body,
+        scheduledAt: DateTime.now(),
+      );
+    }
+    return update;
+  }
+
+  static Future<void> scheduleAdminPush({
+    required String title,
+    required String body,
+    DateTime? scheduledAt,
+  }) async {
+    final db = _client;
+    final uid = userId;
+    if (db == null || uid == null) return;
+    final when = (scheduledAt ?? DateTime.now()).toUtc();
+    try {
+      await db.from('berp_push_messages').insert({
+        'app_id': appId,
+        'kind': 'admin',
+        'title': title,
+        'body': body,
+        'scheduled_at': when.toIso8601String(),
+        'status': 'scheduled',
+        'created_by': uid,
+      });
+    } catch (_) {}
+  }
+
+  static Future<void> setUpdateReaction({
+    required String updateId,
+    required String? reaction,
+  }) async {
+    final db = _client;
+    final uid = userId;
+    if (db == null || uid == null || updateId.isEmpty) return;
+    try {
+      await db
+          .from('staff_update_reactions')
+          .delete()
+          .eq('update_id', updateId)
+          .eq('user_id', uid);
+      if (reaction == null || reaction.isEmpty) return;
+      await db.from('staff_update_reactions').insert({
+        'app_id': appId,
+        'update_id': updateId,
+        'user_id': uid,
+        'reaction': reaction,
+      });
+    } catch (_) {}
+  }
+
+  static Future<StaffUpdateComment?> addUpdateComment({
+    required String updateId,
+    required String body,
+  }) async {
+    final db = _client;
+    final uid = userId;
+    final text = body.trim();
+    if (db == null || uid == null || updateId.isEmpty || text.isEmpty) {
+      return null;
+    }
+    try {
+      final res = await db
+          .from('staff_update_comments')
+          .insert({
+            'app_id': appId,
+            'update_id': updateId,
+            'user_id': uid,
+            'author_name': StaffIdentity.name,
+            'body': text,
+          })
+          .select()
+          .single();
+      return _commentFromRow(Map<String, dynamic>.from(res as Map));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static StaffUpdateComment _commentFromRow(Map<String, dynamic> row) {
+    return StaffUpdateComment(
+      id: '${row['id']}',
+      updateId: '${row['update_id']}',
+      userId: '${row['user_id'] ?? ''}',
+      author: '${row['author_name'] ?? ''}',
+      body: '${row['body'] ?? ''}',
+      at: DateTime.tryParse('${row['created_at']}')?.toLocal() ??
+          DateTime.now(),
+    );
   }
 
   static const _appraisalSelect =
@@ -430,9 +594,15 @@ abstract final class BerpCloud {
     );
   }
 
-  static StaffUpdate _updateFromRow(Map<String, dynamic> row) {
+  static StaffUpdate _updateFromRow(
+    Map<String, dynamic> row, {
+    Map<String, int> reactions = const {},
+    String? myReaction,
+    List<StaffUpdateComment> comments = const [],
+  }) {
     return StaffUpdate(
       id: '${row['id']}',
+      userId: '${row['user_id'] ?? ''}',
       author: '${row['author_name'] ?? ''}',
       role: '${row['author_role'] ?? ''}',
       title: '${row['title'] ?? ''}',
@@ -440,6 +610,9 @@ abstract final class BerpCloud {
       at:
           DateTime.tryParse('${row['created_at']}')?.toLocal() ??
           DateTime.now(),
+      reactions: reactions,
+      myReaction: myReaction,
+      comments: comments,
     );
   }
 

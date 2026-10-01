@@ -51,8 +51,18 @@ class ClockSession {
     return raw;
   }
 
+  String get deviceType {
+    final label = (deviceLabel ?? '').trim();
+    if (label.isNotEmpty) return label;
+    final model = (deviceModel ?? '').trim();
+    if (model.isNotEmpty) return model;
+    final os = (deviceOs ?? '').trim();
+    if (os.isNotEmpty) return os;
+    return 'Unknown device';
+  }
+
   String get deviceSummary {
-    final phone = (deviceLabel ?? deviceModel ?? '').trim();
+    final phone = deviceType == 'Unknown device' ? '' : deviceType;
     final id = deviceShortId;
     final ip = (publicIp ?? '').trim();
     final parts = <String>[
@@ -274,34 +284,85 @@ class StaffUpdate {
     required this.title,
     required this.body,
     required this.at,
+    this.userId = '',
+    this.myReaction,
+    this.reactions = const {},
+    this.comments = const [],
   });
 
   final String id;
+  final String userId;
   final String author;
   final String role;
   final String title;
   final String body;
   final DateTime at;
+  final String? myReaction;
+  final Map<String, int> reactions;
+  final List<StaffUpdateComment> comments;
+
+  int get reactionTotal =>
+      reactions.values.fold<int>(0, (sum, value) => sum + value);
+
+  int get commentCount => comments.length;
 
   Map<String, String> toMap() => {
     'id': id,
+    'userId': userId,
     'author': author,
     'role': role,
     'title': title,
     'body': body,
     'at': at.toIso8601String(),
+    'myReaction': myReaction ?? '',
   };
 
   factory StaffUpdate.fromMap(Map<String, dynamic> map) {
     return StaffUpdate(
       id: '${map['id'] ?? ''}',
+      userId: '${map['userId'] ?? ''}',
       author: '${map['author'] ?? ''}',
       role: '${map['role'] ?? ''}',
       title: '${map['title'] ?? ''}',
       body: '${map['body'] ?? ''}',
       at: DateTime.tryParse('${map['at'] ?? ''}') ?? DateTime.now(),
+      myReaction: '${map['myReaction'] ?? ''}'.isEmpty
+          ? null
+          : '${map['myReaction']}',
     );
   }
+}
+
+class StaffUpdateComment {
+  const StaffUpdateComment({
+    required this.id,
+    required this.updateId,
+    required this.userId,
+    required this.author,
+    required this.body,
+    required this.at,
+  });
+
+  final String id;
+  final String updateId;
+  final String userId;
+  final String author;
+  final String body;
+  final DateTime at;
+}
+
+class FeedStats {
+  const FeedStats({
+    required this.posts,
+    required this.reactions,
+    required this.comments,
+    required this.thisWeek,
+  });
+
+  final int posts;
+  final int reactions;
+  final int comments;
+  final int thisWeek;
 }
 
 abstract final class StaffIdentity {
@@ -572,9 +633,17 @@ class StaffStore {
     return list;
   }
 
-  Future<void> postUpdate({required String title, required String body}) async {
+  Future<void> postUpdate({
+    required String title,
+    required String body,
+    bool sendPush = false,
+  }) async {
     try {
-      final cloud = await BerpCloud.insertUpdate(title: title, body: body);
+      final cloud = await BerpCloud.insertUpdate(
+        title: title,
+        body: body,
+        sendPush: sendPush,
+      );
       if (cloud != null) return;
     } catch (_) {}
     final item = StaffUpdate(
@@ -588,6 +657,19 @@ class StaffStore {
     final all = [item, ...await updates()];
     await _save(_updatesKey, [for (final row in all) row.toMap()]);
   }
+
+  Future<void> reactToUpdate(String updateId, String? reaction) async {
+    await BerpCloud.setUpdateReaction(updateId: updateId, reaction: reaction);
+  }
+
+  Future<StaffUpdateComment?> commentOnUpdate({
+    required String updateId,
+    required String body,
+  }) {
+    return BerpCloud.addUpdateComment(updateId: updateId, body: body);
+  }
+
+  Future<FeedStats> feedStats() => BerpCloud.feedStats();
 
   List<T> _decode<T>(String? raw, T Function(Map<String, dynamic>) parse) {
     if (raw == null || raw.isEmpty) return [];

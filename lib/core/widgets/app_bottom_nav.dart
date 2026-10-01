@@ -53,9 +53,9 @@ const appNavDestinations = <AppNavDestination>[
   ),
   AppNavDestination(Icons.edit_note_outlined, Icons.edit_note_rounded, 'Leave'),
   AppNavDestination(
-    Icons.notifications_none_rounded,
-    Icons.notifications_rounded,
-    'Notices',
+    Icons.dynamic_feed_outlined,
+    Icons.dynamic_feed_rounded,
+    'Feed',
   ),
   AppNavDestination(
     Icons.settings_outlined,
@@ -65,6 +65,15 @@ const appNavDestinations = <AppNavDestination>[
 ];
 
 List<AppNavDestination> destinationsFor(BerpRole role) {
+  if (role.isSuperAdmin) {
+    return const [
+      AppNavDestination(Icons.space_dashboard_outlined, Icons.space_dashboard_rounded, 'Home'),
+      AppNavDestination(Icons.groups_outlined, Icons.groups_rounded, 'Staff'),
+      AppNavDestination(Icons.my_location_outlined, Icons.my_location_rounded, 'Live'),
+      AppNavDestination(Icons.dynamic_feed_outlined, Icons.dynamic_feed_rounded, 'Feed'),
+      AppNavDestination(Icons.grid_view_outlined, Icons.grid_view_rounded, 'More'),
+    ];
+  }
   if (role.isOrgAdmin) {
     return const [
       AppNavDestination(Icons.space_dashboard_outlined, Icons.space_dashboard_rounded, 'Home'),
@@ -81,9 +90,9 @@ List<AppNavDestination> destinationsFor(BerpRole role) {
       AppNavDestination(Icons.edit_note_outlined, Icons.edit_note_rounded, 'Leave'),
       AppNavDestination(Icons.fact_check_outlined, Icons.fact_check_rounded, 'Reviews'),
       AppNavDestination(
-        Icons.notifications_none_rounded,
-        Icons.notifications_rounded,
-        'Notices',
+        Icons.dynamic_feed_outlined,
+        Icons.dynamic_feed_rounded,
+        'Feed',
       ),
     ];
   }
@@ -91,6 +100,15 @@ List<AppNavDestination> destinationsFor(BerpRole role) {
 }
 
 Widget pageForRole(BerpRole role, int target) {
+  if (role.isSuperAdmin) {
+    return switch (target) {
+      1 => const StaffDirectoryScreen(),
+      2 => const LiveAttendanceScreen(),
+      3 => const UpdatesScreen(asTab: true),
+      4 => const AdminMoreScreen(),
+      _ => const AdminDashboardScreen(),
+    };
+  }
   if (role.isOrgAdmin) {
     return switch (target) {
       1 => const StaffDirectoryScreen(),

@@ -1154,7 +1154,7 @@ class _QuickActions extends StatelessWidget {
       ('History', Icons.history_rounded, const AttendanceHistoryScreen()),
       ('Leave', Icons.edit_note_rounded, const LeaveScreen()),
       ('Locations', Icons.place_outlined, const LocationsScreen()),
-      ('Updates', Icons.campaign_outlined, const UpdatesScreen()),
+      ('Feed', Icons.dynamic_feed_outlined, const UpdatesScreen()),
       ('Alerts', Icons.notifications_outlined, const NotificationsScreen()),
       if (superAdmin)
         ('Settings', Icons.settings_outlined, const SettingsScreen()),

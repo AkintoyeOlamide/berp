@@ -31,11 +31,35 @@ class StaffDirectoryScreen extends StatefulWidget {
 class _StaffDirectoryScreenState extends State<StaffDirectoryScreen> {
   List<OrgPerson> _people = [];
   bool _loading = true;
+  bool _searching = false;
+  String _query = '';
+  final _search = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  List<OrgPerson> get _filtered {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return _people;
+    return [
+      for (final person in _people)
+        if (person.name.toLowerCase().contains(q) ||
+            person.email.toLowerCase().contains(q) ||
+            person.department.toLowerCase().contains(q) ||
+            person.company.toLowerCase().contains(q) ||
+            person.jobTitle.toLowerCase().contains(q) ||
+            BerpRoleAccess.parse(person.role).label.toLowerCase().contains(q))
+          person,
+    ];
   }
 
   bool _matchesRole(OrgPerson person) {
@@ -74,48 +98,136 @@ class _StaffDirectoryScreenState extends State<StaffDirectoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final visible = _filtered;
     return PatternPage(
       breadcrumb: 'Dashboard > Staff',
       title: widget.title,
-      subtitle: _loading ? 'LOADING' : '${_people.length} PEOPLE',
+      subtitle: _loading
+          ? 'LOADING'
+          : _searching && _query.trim().isNotEmpty
+              ? '${visible.length} OF ${_people.length} PEOPLE'
+              : '${_people.length} PEOPLE',
       bottom: widget.hideBottomNav
           ? null
           : const AppBottomNav(currentIndex: 1),
+      actions: [
+        Material(
+          color: const Color(0xFF1A1A1A),
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () {
+              setState(() {
+                _searching = !_searching;
+                if (!_searching) {
+                  _query = '';
+                  _search.clear();
+                }
+              });
+            },
+            child: SizedBox(
+              width: 36,
+              height: 36,
+              child: Icon(
+                _searching ? Icons.close_rounded : Icons.search_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ),
+        ),
+      ],
       child: _loading
           ? const Padding(
               padding: EdgeInsets.symmetric(vertical: 40),
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             )
-          : _people.isEmpty
-          ? Text(
-              'No staff match this view.',
-              style: PatternPage.body(size: 13, color: PatternPage.muted),
-            )
-          : PatternGroup(
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final person in _people)
-                  PatternListRow(
-                    title: person.name.isEmpty ? person.email : person.name,
-                    subtitle: [
-                      if (person.jobTitle.isNotEmpty) person.jobTitle,
-                      if (person.department.isNotEmpty) person.department,
-                      BerpRoleAccess.parse(person.role).label,
-                      if (person.suspended) 'Suspended',
-                    ].join('  ·  '),
-                    leading: person.suspended
-                        ? const Icon(
-                            Icons.block_rounded,
-                            color: Color(0xFFE25555),
-                          )
-                        : null,
-                    onTap: () async {
-                      await Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => _StaffDetailScreen(person: person),
+                if (_searching) ...[
+                  Container(
+                    height: 46,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: PatternPage.row,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: PatternPage.divider),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.search_rounded,
+                          color: PatternPage.muted,
+                          size: 20,
                         ),
-                      );
-                      await _load();
-                    },
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: _search,
+                            autofocus: true,
+                            onChanged: (value) =>
+                                setState(() => _query = value),
+                            style: PatternPage.body(size: 13),
+                            cursorColor: PatternPage.blue,
+                            decoration: InputDecoration(
+                              isDense: true,
+                              border: InputBorder.none,
+                              hintText: 'Search name, role, department…',
+                              hintStyle: PatternPage.body(
+                                size: 12,
+                                color: PatternPage.muted,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (visible.isEmpty)
+                  Text(
+                    _people.isEmpty
+                        ? 'No staff match this view.'
+                        : 'No people match your search.',
+                    style: PatternPage.body(
+                      size: 13,
+                      color: PatternPage.muted,
+                    ),
+                  )
+                else
+                  PatternGroup(
+                    children: [
+                      for (final person in visible)
+                        PatternListRow(
+                          title: person.name.isEmpty
+                              ? person.email
+                              : person.name,
+                          subtitle: [
+                            if (person.jobTitle.isNotEmpty) person.jobTitle,
+                            if (person.department.isNotEmpty)
+                              person.department,
+                            BerpRoleAccess.parse(person.role).label,
+                            if (person.suspended) 'Suspended',
+                          ].join('  ·  '),
+                          leading: person.suspended
+                              ? const Icon(
+                                  Icons.block_rounded,
+                                  color: Color(0xFFE25555),
+                                )
+                              : null,
+                          onTap: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    _StaffDetailScreen(person: person),
+                              ),
+                            );
+                            await _load();
+                          },
+                        ),
+                    ],
                   ),
               ],
             ),

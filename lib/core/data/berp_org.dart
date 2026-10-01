@@ -95,6 +95,10 @@ class LiveShift {
     this.latestLat,
     this.latestLng,
     this.latestAt,
+    this.deviceId,
+    this.deviceLabel,
+    this.deviceModel,
+    this.deviceOs,
   });
 
   final String sessionId;
@@ -111,6 +115,26 @@ class LiveShift {
   final double? latestLat;
   final double? latestLng;
   final DateTime? latestAt;
+  final String? deviceId;
+  final String? deviceLabel;
+  final String? deviceModel;
+  final String? deviceOs;
+
+  String get deviceShortId {
+    final raw = (deviceId ?? '').replaceAll('-', '').toUpperCase();
+    if (raw.length >= 8) return raw.substring(0, 8);
+    return raw;
+  }
+
+  String get deviceType {
+    final label = (deviceLabel ?? '').trim();
+    if (label.isNotEmpty) return label;
+    final model = (deviceModel ?? '').trim();
+    if (model.isNotEmpty) return model;
+    final os = (deviceOs ?? '').trim();
+    if (os.isNotEmpty) return os;
+    return 'Unknown device';
+  }
 }
 
 class AttendanceRow {
@@ -502,6 +526,18 @@ abstract final class BerpOrg {
             latestLat: latest['${row['id']}']?.$1,
             latestLng: latest['${row['id']}']?.$2,
             latestAt: latest['${row['id']}']?.$3,
+            deviceId: '${row['device_id'] ?? ''}'.isEmpty
+                ? null
+                : '${row['device_id']}',
+            deviceLabel: '${row['device_label'] ?? ''}'.isEmpty
+                ? null
+                : '${row['device_label']}',
+            deviceModel: '${row['device_model'] ?? ''}'.isEmpty
+                ? null
+                : '${row['device_model']}',
+            deviceOs: '${row['device_os'] ?? ''}'.isEmpty
+                ? null
+                : '${row['device_os']}',
           ),
     ];
   }
