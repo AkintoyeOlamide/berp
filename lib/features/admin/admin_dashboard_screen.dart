@@ -256,8 +256,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     child: CustomPaint(
                       painter: _LineChartPainter(
                         values: _weekCounts,
-                        lineColor: AppColors.secondary,
-                        fillColor: AppColors.secondary.withValues(alpha: 0.18),
+                        lineColor: AppColors.orange,
+                        fillColor: AppColors.orange.withValues(alpha: 0.18),
                       ),
                       child: const SizedBox.expand(),
                     ),
@@ -483,17 +483,17 @@ class _HeroBanner extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: superAdmin
                   ? const [
-                      Color(0xFF161F66),
-                      Color(0xFF1F2D90),
-                      Color(0xFF1E90FF),
+                      Color(0xFF1C1C1E),
+                      Color(0xFF17171A),
+                      Color(0xFF121214),
                     ]
                   : const [
-                      Color(0xFF12182A),
-                      Color(0xFF1A2238),
-                      Color(0xFF1F2D90),
+                      Color(0xFF1A1A1C),
+                      Color(0xFF141416),
+                      Color(0xFF101012),
                     ],
             ),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(color: const Color(0xFF2C2C2E)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -587,7 +587,7 @@ class _OrganisationStats extends StatelessWidget {
           'Super Admin',
           'super_admin',
           Icons.workspace_premium_rounded,
-          AppColors.secondary,
+          AppColors.orange,
           summary.superAdmins,
           const StaffDirectoryScreen(
             title: 'Super Admins',
@@ -1223,7 +1223,7 @@ class _QuickActions extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(action.$2, color: AppColors.secondary, size: 18),
+                  Icon(action.$2, color: AppColors.orange, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(

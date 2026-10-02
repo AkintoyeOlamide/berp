@@ -196,7 +196,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
         body: Stack(
           children: [
             RefreshIndicator(
-              color: AppColors.secondary,
+              color: AppColors.orange,
               backgroundColor: AppColors.surface,
               onRefresh: _load,
               child: CustomScrollView(
@@ -405,13 +405,13 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                                       width: 40,
                                       height: 40,
                                       decoration: BoxDecoration(
-                                        color: AppColors.brandBlue
+                                        color: AppColors.orange
                                             .withValues(alpha: 0.14),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: const Icon(
                                         Icons.confirmation_number_outlined,
-                                        color: AppColors.brandBlue,
+                                        color: AppColors.orange,
                                         size: 20,
                                       ),
                                     ),
@@ -573,7 +573,7 @@ class _PersonalStatsCard extends StatelessWidget {
                 child: CustomPaint(
                   painter: _MiniRingPainter(
                     progress: onShift ? 1 : (hoursToday.inMinutes / (8 * 60)).clamp(0.0, 1.0),
-                    color: onShift ? AppColors.green : AppColors.secondary,
+                    color: onShift ? AppColors.green : AppColors.orange,
                     label: formatHoursCompact(hoursToday),
                     sub: 'today',
                   ),
@@ -622,7 +622,7 @@ class _PersonalStatsCard extends StatelessWidget {
                     const Icon(
                       Icons.history_rounded,
                       size: 18,
-                      color: AppColors.secondary,
+                      color: AppColors.muted,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -813,16 +813,17 @@ class _ClockCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF2A3CB8),
-            AppColors.brandBlue,
-            AppColors.brandBlueDeep,
+            Color(0xFF1C1C1E),
+            Color(0xFF141416),
+            Color(0xFF0F0F10),
           ],
         ),
+        border: Border.all(color: const Color(0xFF2C2C2E)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.brandBlue.withValues(alpha: 0.28),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -907,7 +908,7 @@ class _ClockCard extends StatelessWidget {
                 const Icon(
                   Icons.check_circle_rounded,
                   size: 15,
-                  color: AppColors.secondary,
+                  color: AppColors.green,
                 ),
               ],
             ],
@@ -919,9 +920,9 @@ class _ClockCard extends StatelessWidget {
             child: FilledButton(
               onPressed: busy ? null : onPressed,
               style: FilledButton.styleFrom(
-                backgroundColor: onShift ? AppColors.orange : AppColors.secondary,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: (onShift ? AppColors.orange : AppColors.secondary)
+                backgroundColor: onShift ? AppColors.orange : Colors.white,
+                foregroundColor: onShift ? Colors.white : Colors.black,
+                disabledBackgroundColor: (onShift ? AppColors.orange : Colors.white)
                     .withValues(alpha: 0.45),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -934,7 +935,11 @@ class _ClockCard extends StatelessWidget {
                       children: [
                         Text(
                           busy ? 'Saving...' : 'Clock Out',
-                          style: _display(size: 11, weight: FontWeight.w600),
+                          style: _display(
+                            size: 11,
+                            weight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         const Icon(Icons.timer_outlined, size: 18),
@@ -942,7 +947,11 @@ class _ClockCard extends StatelessWidget {
                     )
                   : Text(
                       busy ? 'Checking location...' : 'Clock In',
-                      style: _display(size: 11, weight: FontWeight.w600),
+                      style: _display(
+                        size: 11,
+                        weight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
                     ),
             ),
           ),
@@ -1087,7 +1096,7 @@ class _AppraisalCard extends StatelessWidget {
             children: [
               const _BadgeIcon(
                 icon: Icons.track_changes_rounded,
-                color: AppColors.secondary,
+                color: AppColors.orange,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -1226,7 +1235,7 @@ class _ShiftCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          const _BadgeIcon(icon: Icons.schedule_rounded, color: AppColors.secondary),
+          const _BadgeIcon(icon: Icons.schedule_rounded, color: AppColors.orange),
           const Spacer(),
           const SizedBox(height: 12),
           Text(
@@ -1323,7 +1332,7 @@ class _WeekBar extends StatelessWidget {
         ? AppColors.surfaceHigh
         : today || hours.inHours >= 8
         ? AppColors.green
-        : AppColors.secondary;
+        : AppColors.orange;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Column(
@@ -1425,7 +1434,7 @@ class _TeamRow extends StatelessWidget {
           backgroundColor: AppColors.surfaceHigh,
           child: Text(
             initial,
-            style: _sans(size: 10, weight: FontWeight.w600, color: AppColors.secondary),
+            style: _sans(size: 10, weight: FontWeight.w600, color: AppColors.muted),
           ),
         ),
         const SizedBox(width: 6),

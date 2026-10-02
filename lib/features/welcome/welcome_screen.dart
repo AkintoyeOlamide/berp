@@ -16,13 +16,13 @@ class WelcomeScreen extends StatefulWidget {
 class _WelcomeScreenState extends State<WelcomeScreen>
     with SingleTickerProviderStateMixin {
   static const _logoAsset = BerpBrand.logo;
-  static const _blue = AppColors.secondary;
   static final _termsUri = Uri.parse('https://bhr-iota-mu.vercel.app/terms/berp');
   static final _privacyUri =
       Uri.parse('https://bhr-iota-mu.vercel.app/privacy/berp');
 
   late final AnimationController _enter;
   late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
 
   @override
   void initState() {
@@ -30,9 +30,13 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
     _enter = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 800),
     );
     _fade = CurvedAnimation(parent: _enter, curve: Curves.easeOut);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.04),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _enter, curve: Curves.easeOutCubic));
     _enter.forward();
   }
 
@@ -80,57 +84,58 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
-        backgroundColor: const Color(0xFF050814),
+        backgroundColor: const Color(0xFF0A0A0A),
         body: DecoratedBox(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Color(0xFF050814),
-                Color(0xFF101A4A),
-                Color(0xFF070910),
+                Color(0xFF141414),
+                Color(0xFF0A0A0A),
+                Color(0xFF070707),
               ],
-              stops: [0.0, 0.42, 1.0],
+              stops: [0.0, 0.55, 1.0],
             ),
           ),
           child: FadeTransition(
             opacity: _fade,
-            child: SafeArea(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  landscape
-                      ? _LandscapeBody(
-                          logoAsset: _logoAsset,
-                          blue: _blue,
-                          onCreate: () => _openAuth(AuthMode.create),
-                          onSignIn: () => _openAuth(AuthMode.signIn),
-                          onTerms: () => _openLegal(_termsUri),
-                          onPrivacy: () => _openLegal(_privacyUri),
-                        )
-                      : _PortraitBody(
-                          logoAsset: _logoAsset,
-                          blue: _blue,
-                          onCreate: () => _openAuth(AuthMode.create),
-                          onSignIn: () => _openAuth(AuthMode.signIn),
-                          onTerms: () => _openLegal(_termsUri),
-                          onPrivacy: () => _openLegal(_privacyUri),
-                        ),
-                  if (Navigator.of(context).canPop())
-                    Positioned(
-                      top: 4,
-                      left: 8,
-                      child: IconButton(
-                        onPressed: () => Navigator.of(context).maybePop(),
-                        icon: const Icon(
-                          Icons.chevron_left_rounded,
-                          color: Colors.white,
-                          size: 28,
+            child: SlideTransition(
+              position: _slide,
+              child: SafeArea(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    landscape
+                        ? _LandscapeBody(
+                            logoAsset: _logoAsset,
+                            onCreate: () => _openAuth(AuthMode.create),
+                            onSignIn: () => _openAuth(AuthMode.signIn),
+                            onTerms: () => _openLegal(_termsUri),
+                            onPrivacy: () => _openLegal(_privacyUri),
+                          )
+                        : _PortraitBody(
+                            logoAsset: _logoAsset,
+                            onCreate: () => _openAuth(AuthMode.create),
+                            onSignIn: () => _openAuth(AuthMode.signIn),
+                            onTerms: () => _openLegal(_termsUri),
+                            onPrivacy: () => _openLegal(_privacyUri),
+                          ),
+                    if (Navigator.of(context).canPop())
+                      Positioned(
+                        top: 4,
+                        left: 8,
+                        child: IconButton(
+                          onPressed: () => Navigator.of(context).maybePop(),
+                          icon: const Icon(
+                            Icons.chevron_left_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -150,7 +155,6 @@ TextStyle _panchang({
   return TextStyle(
     fontFamily: 'Panchang',
     fontFamilyFallback: const ['Panchang'],
-    package: null,
     color: color,
     fontSize: fontSize,
     fontWeight: fontWeight,
@@ -162,7 +166,6 @@ TextStyle _panchang({
 class _PortraitBody extends StatelessWidget {
   const _PortraitBody({
     required this.logoAsset,
-    required this.blue,
     required this.onCreate,
     required this.onSignIn,
     required this.onTerms,
@@ -170,7 +173,6 @@ class _PortraitBody extends StatelessWidget {
   });
 
   final String logoAsset;
-  final Color blue;
   final VoidCallback onCreate;
   final VoidCallback onSignIn;
   final VoidCallback onTerms;
@@ -183,64 +185,72 @@ class _PortraitBody extends StatelessWidget {
 
     return SizedBox.expand(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(side, 12, side, 20),
+        padding: EdgeInsets.fromLTRB(side, 20, side, 24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const SizedBox(height: 12),
+            const Spacer(flex: 2),
             FittedBox(
               fit: BoxFit.scaleDown,
               child: _LandingLockup(logoAsset: logoAsset),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             const _BrandStripes(),
-            const Spacer(),
+            const SizedBox(height: 28),
+            Text(
+              'Staff portal',
+              textAlign: TextAlign.center,
+              style: _panchang(
+                color: Colors.white,
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Clock in, leave, tickets, and team updates —\nin one calm place.',
+              textAlign: TextAlign.center,
+              style: _panchang(
+                color: const Color(0xFF9A9A9A),
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+                height: 1.45,
+              ),
+            ),
+            const Spacer(flex: 3),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 360),
-              child: SizedBox(
-                width: double.infinity,
-                child: Column(
-                  children: [
-                  Text(
-                    'Staff sign in',
-                    textAlign: TextAlign.center,
-                    style: _panchang(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  _LegalLine(
-                    onTerms: onTerms,
-                    onPrivacy: onPrivacy,
-                    blue: blue,
-                  ),
-                  const SizedBox(height: 16),
-                  _PrimaryButton(
-                    label: 'Create account',
-                    blue: blue,
-                    onTap: onCreate,
-                  ),
-                  const SizedBox(height: 16),
-                  GestureDetector(
-                    onTap: onSignIn,
-                    child: Text(
-                      'Sign in',
-                      textAlign: TextAlign.center,
-                      style: _panchang(
-                        color: AppColors.secondary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
+              child: Column(
+                children: [
+                  _PrimaryButton(label: 'Create account', onTap: onCreate),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: onSignIn,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Color(0xFF333333)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: Text(
+                        'Sign in',
+                        style: _panchang(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
+                  const SizedBox(height: 18),
+                  _LegalLine(onTerms: onTerms, onPrivacy: onPrivacy),
                 ],
               ),
             ),
-            ),
-            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -251,7 +261,6 @@ class _PortraitBody extends StatelessWidget {
 class _LandscapeBody extends StatelessWidget {
   const _LandscapeBody({
     required this.logoAsset,
-    required this.blue,
     required this.onCreate,
     required this.onSignIn,
     required this.onTerms,
@@ -259,7 +268,6 @@ class _LandscapeBody extends StatelessWidget {
   });
 
   final String logoAsset;
-  final Color blue;
   final VoidCallback onCreate;
   final VoidCallback onSignIn;
   final VoidCallback onTerms;
@@ -269,95 +277,87 @@ class _LandscapeBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox.expand(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
         child: Row(
           children: [
-                Expanded(
-                  flex: 4,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _LandingLockup(logoAsset: logoAsset, compact: true),
-                      const SizedBox(height: 8),
-                      const _BrandStripes(),
-                    ],
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _LandingLockup(logoAsset: logoAsset, compact: true),
+                  const SizedBox(height: 12),
+                  const _BrandStripes(),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Staff portal',
+                    style: _panchang(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  flex: 4,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Staff sign in',
-                        style: _panchang(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
+                ],
+              ),
+            ),
+            const SizedBox(width: 28),
+            Expanded(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 320),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _PrimaryButton(label: 'Create account', onTap: onCreate),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: OutlinedButton(
+                        onPressed: onSignIn,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Color(0xFF333333)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      _LegalLine(
-                        onTerms: onTerms,
-                        onPrivacy: onPrivacy,
-                        blue: blue,
-                      ),
-                      const SizedBox(height: 12),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 300),
-                        child: _PrimaryButton(
-                          label: 'Create account',
-                          blue: blue,
-                          onTap: onCreate,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      GestureDetector(
-                        onTap: onSignIn,
                         child: Text(
                           'Sign in',
                           style: _panchang(
-                            color: AppColors.secondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 14),
+                    _LegalLine(onTerms: onTerms, onPrivacy: onPrivacy),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        );
+          ],
+        ),
+      ),
+    );
   }
 }
 
 class _LegalLine extends StatelessWidget {
-  const _LegalLine({
-    required this.onTerms,
-    required this.onPrivacy,
-    required this.blue,
-  });
+  const _LegalLine({required this.onTerms, required this.onPrivacy});
 
   final VoidCallback onTerms;
   final VoidCallback onPrivacy;
-  final Color blue;
 
   @override
   Widget build(BuildContext context) {
     final base = _panchang(
-      color: AppColors.secondary,
-      fontSize: 9.5,
-      height: 1.35,
+      color: const Color(0xFF7A7A7A),
+      fontSize: 10,
+      height: 1.4,
     );
-    final terms = base.copyWith(
-      color: AppColors.secondary,
-      fontWeight: FontWeight.w600,
-    );
-    final privacy = base.copyWith(
-      color: AppColors.secondary,
+    final link = base.copyWith(
+      color: const Color(0xFFCFCFCF),
       fontWeight: FontWeight.w600,
     );
 
@@ -371,7 +371,7 @@ class _LegalLine extends StatelessWidget {
             baseline: TextBaseline.alphabetic,
             child: GestureDetector(
               onTap: onTerms,
-              child: Text('Terms', style: terms),
+              child: Text('Terms', style: link),
             ),
           ),
           const TextSpan(text: ' and '),
@@ -380,7 +380,7 @@ class _LegalLine extends StatelessWidget {
             baseline: TextBaseline.alphabetic,
             child: GestureDetector(
               onTap: onPrivacy,
-              child: Text('Privacy Policy', style: privacy),
+              child: Text('Privacy Policy', style: link),
             ),
           ),
         ],
@@ -391,17 +391,14 @@ class _LegalLine extends StatelessWidget {
 }
 
 class _LandingLockup extends StatelessWidget {
-  const _LandingLockup({
-    required this.logoAsset,
-    this.compact = false,
-  });
+  const _LandingLockup({required this.logoAsset, this.compact = false});
 
   final String logoAsset;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final markH = compact ? 32.0 : 44.0;
+    final markH = compact ? 36.0 : 52.0;
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -412,7 +409,7 @@ class _LandingLockup extends StatelessWidget {
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -420,20 +417,20 @@ class _LandingLockup extends StatelessWidget {
               BerpBrand.wordmark,
               style: _panchang(
                 color: Colors.white,
-                fontSize: compact ? 13 : 16,
+                fontSize: compact ? 15 : 20,
                 fontWeight: FontWeight.w700,
-                letterSpacing: 1.1,
+                letterSpacing: 1.2,
                 height: 1,
               ),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 4),
             Text(
               BerpBrand.line,
               style: _panchang(
-                color: AppColors.secondary,
-                fontSize: compact ? 8 : 9.5,
+                color: const Color(0xFF9A9A9A),
+                fontSize: compact ? 8.5 : 10,
                 fontWeight: FontWeight.w600,
-                letterSpacing: 2.4,
+                letterSpacing: 2.6,
                 height: 1,
               ),
             ),
@@ -449,7 +446,7 @@ class _BrandStripes extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const colors = [AppColors.cyan, AppColors.orange, AppColors.green];
+    const colors = [AppColors.orange, AppColors.green, Color(0xFF6B8CFF)];
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -473,38 +470,33 @@ class _BrandStripes extends StatelessWidget {
 }
 
 class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({
-    required this.label,
-    required this.blue,
-    required this.onTap,
-  });
+  const _PrimaryButton({required this.label, required this.onTap});
 
   final String label;
-  final Color blue;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 44,
+      height: 50,
       child: FilledButton(
         onPressed: onTap,
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.secondary,
-          overlayColor: Colors.white.withValues(alpha: 0.12),
-          foregroundColor: Colors.white,
+          backgroundColor: Colors.white,
+          overlayColor: Colors.black.withValues(alpha: 0.06),
+          foregroundColor: Colors.black,
           elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
         child: Text(
           label,
           style: _panchang(
-            fontWeight: FontWeight.w600,
-            fontSize: 9.5,
-            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+            color: Colors.black,
           ),
         ),
       ),

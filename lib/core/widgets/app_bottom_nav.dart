@@ -382,7 +382,7 @@ class _NavTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? AppColors.secondary : AppColors.muted;
+    final color = selected ? AppColors.orange : AppColors.muted;
 
     return Material(
       color: Colors.transparent,
