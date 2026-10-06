@@ -10,6 +10,7 @@ import '../../core/auth/signed_in_home.dart';
 import '../../core/boot.dart';
 import '../../core/responsive/responsive.dart';
 import '../../core/theme/app_colors.dart';
+import '../auth/biometric_gate.dart';
 import '../welcome/welcome_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -105,7 +106,7 @@ class _SplashScreenState extends State<SplashScreen>
     } catch (_) {}
     if (!mounted) return;
     final next = AuthService.isSignedIn
-        ? await signedInHome()
+        ? BiometricGate(child: await signedInHome())
         : const WelcomeScreen();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(

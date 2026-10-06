@@ -8,6 +8,7 @@ import '../../core/auth/staff_access.dart';
 import '../../core/data/berp_cloud.dart';
 import '../../core/data/berp_org.dart';
 import '../../core/data/staff_store.dart';
+import '../../core/location/clock_access.dart';
 import '../../core/location/clock_fence.dart';
 import '../../core/location/shift_location.dart';
 import '../../core/theme/app_colors.dart';
@@ -113,10 +114,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     setState(() => _busy = true);
     try {
       if (_open == null) {
-        final sites = await BerpOrg.activeSites();
-        final check = await ClockFence.checkIn(sites: sites);
+        final check = await ClockAccess.prepareClockIn(context);
         if (!check.ok || check.site == null) {
-          if (mounted) _toast(check.message);
+          if (mounted && check.message != 'Clock-in cancelled.') {
+            _toast(check.message);
+          }
           return;
         }
         await StaffStore.instance.clockIn(

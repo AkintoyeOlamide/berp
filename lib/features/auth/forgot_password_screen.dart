@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/auth/signed_in_home.dart';
 import '../../core/theme/app_colors.dart';
+import 'biometric_gate.dart';
 
 enum _ResetStep { email, code, password }
 
@@ -238,7 +239,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       Navigator.of(context).pushAndRemoveUntil(
         PageRouteBuilder<void>(
           transitionDuration: const Duration(milliseconds: 450),
-          pageBuilder: (_, _, _) => home,
+          pageBuilder: (_, _, _) => BiometricGate(child: home),
           transitionsBuilder: (_, animation, _, child) {
             return FadeTransition(
               opacity: CurvedAnimation(

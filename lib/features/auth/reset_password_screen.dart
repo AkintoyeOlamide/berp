@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/auth/signed_in_home.dart';
+import 'biometric_gate.dart';
 
 /// Set a new password after the user opens the reset link from email.
 class ResetPasswordScreen extends StatefulWidget {
@@ -88,7 +89,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       Navigator.of(context).pushAndRemoveUntil(
         PageRouteBuilder<void>(
           transitionDuration: const Duration(milliseconds: 450),
-          pageBuilder: (_, _, _) => home,
+          pageBuilder: (_, _, _) => BiometricGate(child: home),
           transitionsBuilder: (_, animation, _, child) {
             return FadeTransition(
               opacity: CurvedAnimation(

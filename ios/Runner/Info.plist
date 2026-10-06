@@ -28,6 +28,8 @@
 		<true/>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>BERP uses your location only when you clock in, to confirm you are at an approved workplace.</string>
+		<key>NSFaceIDUsageDescription</key>
+		<string>BERP uses Face ID to unlock the app after you sign in.</string>
 		<key>NSCameraUsageDescription</key>
 		<string>BERP uses the camera so you can take a staff profile photo.</string>
 		<key>NSPhotoLibraryUsageDescription</key>

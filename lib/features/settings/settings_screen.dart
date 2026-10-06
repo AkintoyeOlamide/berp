@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/auth/biometric_lock.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/settings/app_settings.dart';
 import '../../core/widgets/app_bottom_nav.dart';
@@ -13,13 +14,71 @@ import '../staff/profile_screen.dart';
 import '../welcome/welcome_screen.dart';
 import 'settings_pages.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool _biometricEnabled = false;
+  bool _biometricAvailable = false;
+  String _biometricLabel = 'Biometrics';
+  bool _biometricBusy = false;
 
   static const _bg = Color(0xFF0A0A0A);
   static const _sheet = Color(0xFF0B0B0B);
   static const _muted = Color(0xFF8E8E93);
   static const _row = Color(0xFF121212);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBiometric();
+  }
+
+  Future<void> _loadBiometric() async {
+    final enabled = await BiometricLock.isEnabled();
+    final available = await BiometricLock.isAvailable();
+    final label = await BiometricLock.label();
+    if (!mounted) return;
+    setState(() {
+      _biometricEnabled = enabled;
+      _biometricAvailable = available;
+      _biometricLabel = label;
+    });
+  }
+
+  Future<void> _toggleBiometric(bool value) async {
+    if (_biometricBusy) return;
+    setState(() => _biometricBusy = true);
+    try {
+      if (value) {
+        if (!_biometricAvailable) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No fingerprint or Face ID is set up on this device.'),
+            ),
+          );
+          return;
+        }
+        final ok = await BiometricLock.authenticate(
+          reason: 'Confirm $_biometricLabel to enable unlock',
+        );
+        if (!ok) return;
+        await BiometricLock.setEnabled(true);
+        if (!mounted) return;
+        setState(() => _biometricEnabled = true);
+      } else {
+        await BiometricLock.setEnabled(false);
+        if (!mounted) return;
+        setState(() => _biometricEnabled = false);
+      }
+    } finally {
+      if (mounted) setState(() => _biometricBusy = false);
+    }
+  }
 
   TextStyle _panchang({
     required double size,
@@ -212,6 +271,24 @@ class SettingsScreen extends StatelessWidget {
                                     context,
                                     const NotificationPreferencesScreen(),
                                   ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 26),
+                            _SectionLabel(label: 'SECURITY', body: _body),
+                            const SizedBox(height: 10),
+                            _SettingsGroup(
+                              children: [
+                                _SettingsToggleRow(
+                                  icon: Icons.fingerprint_rounded,
+                                  label: '$_biometricLabel unlock',
+                                  subtitle: _biometricAvailable
+                                      ? 'Require biometrics when opening BERP'
+                                      : 'Not available on this device',
+                                  value: _biometricEnabled,
+                                  enabled:
+                                      _biometricAvailable && !_biometricBusy,
+                                  onChanged: _toggleBiometric,
                                 ),
                               ],
                             ),
@@ -422,6 +499,67 @@ class _SettingsRow extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SettingsToggleRow extends StatelessWidget {
+  const _SettingsToggleRow({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFF8E8E93), size: 20),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.white,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    color: const Color(0xFF8E8E93),
+                    height: 1.25,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: value,
+            onChanged: enabled ? onChanged : null,
+            activeThumbColor: Colors.white,
+          ),
+        ],
       ),
     );
   }

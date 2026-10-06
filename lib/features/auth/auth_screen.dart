@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/auth/signed_in_home.dart';
+import 'biometric_gate.dart';
 import '../../core/theme/app_colors.dart';
 import 'forgot_password_screen.dart';
 
@@ -84,7 +85,7 @@ class _AuthScreenState extends State<AuthScreen> {
     Navigator.of(context).pushAndRemoveUntil(
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 450),
-        pageBuilder: (_, _, _) => home,
+        pageBuilder: (_, _, _) => BiometricGate(child: home),
         transitionsBuilder: (_, animation, _, child) {
           return FadeTransition(
             opacity: CurvedAnimation(
